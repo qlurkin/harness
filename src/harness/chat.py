@@ -3,7 +3,7 @@ import urllib.request
 from .config import MODEL, OLLAMA_URL
 from .serialisation import dumps, loads
 from .structs import ChatRequest, Message
-from .tools import TOOLS
+from .tools import get_tools
 
 
 class ChatError(Exception):
@@ -11,7 +11,7 @@ class ChatError(Exception):
 
 
 def chat(messages: list[Message]) -> Message:
-    body = dumps(ChatRequest(model=MODEL, messages=messages, tools=TOOLS)).encode(
+    body = dumps(ChatRequest(model=MODEL, messages=messages, tools=get_tools())).encode(
         "utf8"
     )
     req = urllib.request.Request(

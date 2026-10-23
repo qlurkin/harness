@@ -1,8 +1,8 @@
 from typing import Any
 
-from .structs import Tool, ToolFunction
+from ..structs import Tool, ToolFunction
 
-readFileTool = Tool(
+description = Tool(
     "function",
     ToolFunction(
         "read_file",
@@ -18,7 +18,7 @@ readFileTool = Tool(
 )
 
 
-def read_file(args: dict[str, Any]):
+def function(args: dict[str, Any]):
     try:
         path = args["path"]
     except KeyError:
@@ -31,7 +31,3 @@ def read_file(args: dict[str, Any]):
         return f"error: {e}"
 
     return str(data)
-
-
-TOOLS = [readFileTool]
-TOOL_FUNCTIONS = {"read_file": read_file}
