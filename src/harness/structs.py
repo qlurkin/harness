@@ -42,11 +42,15 @@ class ChatRequest:
     messages: list[Message]
     stream: bool = False
     tools: list[Tool] = field(default_factory=list)
+    options: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class ChatResponse:
     message: Message
+    done: bool
+    prompt_eval_count: int = 0
+    eval_count: int = 0
 
 
 make_object_hook(
