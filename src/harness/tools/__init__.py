@@ -17,7 +17,11 @@ def get_tools():
 
 
 def call_tool(name, args):
-    return _TOOL_FUNCTIONS[name](args)
+    try:
+        result = _TOOL_FUNCTIONS[name](args)
+    except KeyError:
+        result = f"error: unknown tool {name}"
+    return result
 
 
 def print_tools():
