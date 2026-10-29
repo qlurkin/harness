@@ -19,11 +19,20 @@ def harness(conversation):
         try:
             chunks = chat(conversation)
             content_started = False
+            thinking_started = False
             used = 0
             reply = Message("assistant", "")
             tool_results = []
             for chunk, usage in chunks:
                 used += usage
+                if len(chunk.thinking) > 0:
+                    if not thinking_started:
+                        print("\033[90m\nThinking:\033[0m")
+                        thinking_started = True
+                    print(f"\033[90m{chunk.thinking}\033[0m", end="")
+                else:
+                    if thinking_started:
+                        print()
                 if len(chunk.content) > 0:
                     if not content_started:
                         print("\nHarness:")
