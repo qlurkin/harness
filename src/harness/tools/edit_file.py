@@ -3,7 +3,7 @@ from typing import Any
 
 from ..structs import Tool, ToolFunction
 
-safe = True
+SAFE = True
 
 description = Tool(
     "function",

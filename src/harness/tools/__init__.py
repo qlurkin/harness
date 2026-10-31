@@ -20,7 +20,7 @@ def get_tools():
 
 
 def ask_permission(name):
-    ans = input(f"allow {name}? [y]es once / [a]lways / [n]o")
+    ans = input(f"allow {name}? [y]es once / [a]lways / [n]o\n")
     if ans.lower() == "y":
         return True
     if ans.lower() == "a":
@@ -30,7 +30,7 @@ def ask_permission(name):
 
 
 def call_tool(name, args):
-    if _TOOL_SAFE[name] or _APPROVED[name] or ask_permission(name):
+    if _TOOL_SAFE[name] or _APPROVED.get("name", False) or ask_permission(name):
         try:
             result = _TOOL_FUNCTIONS[name](args)
         except KeyError:

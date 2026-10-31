@@ -62,7 +62,7 @@ def harness(conversation):
 
             conversation.extend(tool_results)
     except KeyboardInterrupt:
-        print("/n(interrupted)")
+        print("\n(interrupted)")
 
 
 def main() -> None:
