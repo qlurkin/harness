@@ -15,50 +15,54 @@ def process_tool_calls(tool_calls):
 
 
 def harness(conversation):
-    while True:
-        try:
-            chunks = chat(conversation)
-            content_started = False
-            thinking_started = False
-            used = 0
-            reply = Message("assistant", "")
-            tool_results = []
-            for chunk, usage in chunks:
-                used += usage
-                if len(chunk.thinking) > 0:
-                    if not thinking_started:
-                        print("\033[90m\nThinking:\033[0m")
-                        thinking_started = True
-                    print(f"\033[90m{chunk.thinking}\033[0m", end="")
-                else:
-                    if thinking_started:
-                        print()
-                if len(chunk.content) > 0:
-                    if not content_started:
-                        print("\nHarness:")
-                        content_started = True
-                    print(chunk.content, end="")
-                    reply.content += chunk.content
-                reply.tool_calls.extend(chunk.tool_calls)
-                tool_results.extend(process_tool_calls(chunk.tool_calls))
-            if content_started:
-                print()
+    try:
+        while True:
+            try:
+                chunks = chat(conversation)
+                content_started = False
+                thinking_started = False
+                used = 0
+                reply = Message("assistant", "")
+                tool_results = []
+                for chunk, usage in chunks:
+                    used += usage
+                    if len(chunk.thinking) > 0:
+                        if not thinking_started:
+                            print("\033[90m\nThinking:\033[0m")
+                            thinking_started = True
+                        print(f"\033[90m{chunk.thinking}\033[0m", end="")
+                    else:
+                        if thinking_started:
+                            print()
+                            thinking_started = False
+                    if len(chunk.content) > 0:
+                        if not content_started:
+                            print("\nHarness:")
+                            content_started = True
+                        print(chunk.content, end="")
+                        reply.content += chunk.content
+                    reply.tool_calls.extend(chunk.tool_calls)
+                    tool_results.extend(process_tool_calls(chunk.tool_calls))
+                if content_started:
+                    print()
 
-        except ChatError as e:
-            print(f"ChatError: {e}")
-            break
+            except ChatError as e:
+                print(f"ChatError: {e}")
+                break
 
-        conversation.append(reply)
+            conversation.append(reply)
 
-        marker = ""
-        if used > NUM_CTX * 8 / 10:
-            marker = " ⚠ context nearly full"
-        print(f"  [ctx {used}/{NUM_CTX}{marker}]")
+            marker = ""
+            if used > NUM_CTX * 8 / 10:
+                marker = " ⚠ context nearly full"
+            print(f"  [ctx {used}/{NUM_CTX}{marker}]")
 
-        if len(tool_results) == 0:
-            break
+            if len(tool_results) == 0:
+                break
 
-        conversation.extend(tool_results)
+            conversation.extend(tool_results)
+    except KeyboardInterrupt:
+        print("/n(interrupted)")
 
 
 def main() -> None:
@@ -68,10 +72,10 @@ def main() -> None:
 
     try:
         while True:
-            msg = input("\nYou: ")
+            msg = input("\nYou:\n")
             conversation.append(Message("user", msg))
 
             harness(conversation)
 
     except KeyboardInterrupt:
-        print("\n\nHarness: Bye")
+        print("\n\nHarness:\nBye")
