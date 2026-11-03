@@ -31,7 +31,7 @@ def function(args: dict[str, Any]):
     lines = []
 
     for root, folders, files in os.walk(dir):
-        folders[:] = [f for f in folders if f not in {".git", "__pycache__"}]
+        folders[:] = [f for f in folders if f not in {".git", "__pycache__", ".venv"}]
         for file in files:
             lines.append(os.path.relpath(os.path.join(root, file), dir))
 
