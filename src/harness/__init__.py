@@ -4,6 +4,12 @@ from .structs import Message
 from .system_prompt import system_prompt
 from .tools import Permission, call_tool, get_registered_tools
 
+# TODO:
+# - ensure list_files and edit_file are in project
+# - ask_permission in UI
+# - display context info in menu bar in UI
+# - drop_down for model selection
+
 
 def process_tool_calls(tool_calls, stream_tool_call, ask_permission):
     results = []

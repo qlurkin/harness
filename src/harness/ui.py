@@ -1,9 +1,10 @@
 from textual.app import App, ComposeResult
-from textual.containers import VerticalScroll, VerticalGroup
+from textual.containers import VerticalGroup, VerticalScroll
 from textual.message import Message as TextualMessage
-from textual.widgets import Footer, Header, Input, Markdown, Static
+from textual.widgets import Collapsible, Footer, Header, Input, Markdown, Static
 
 from harness import harness
+from harness.config import MAX_WIDGETS
 from harness.structs import Message
 from harness.system_prompt import system_prompt
 from harness.tools import Permission
@@ -83,13 +84,20 @@ class ResponseWidget(VerticalGroup):
         self.md.append(content)
 
 
-class ThinkingWidget(Markdown):
-    DEFAULT_CSS = """
-    ThinkingWidget {
-        color: #808080;
-        padding: 0 1 -1 1;
-    }
-    """
+class ThinkingWidget(VerticalGroup):
+    # DEFAULT_CSS = """
+    # ThinkingWidget {
+    #     color: #808080;
+    # }
+    # """
+
+    def compose(self):
+        with Collapsible(title="Thinking", collapsed=False):
+            self.md = Markdown()
+            yield self.md
+
+    def append(self, content):
+        self.md.append(content)
 
 
 class UI(App):
@@ -115,6 +123,7 @@ class UI(App):
 
         yield Header()
         self.chats = VerticalScroll()
+        self.chats.anchor(True)
         yield self.chats
         self.input = Input(placeholder="Prompt")
         yield self.input
@@ -141,12 +150,20 @@ class UI(App):
 
     def on_tool_call_message(self, event: ToolCallMessage):
         self.__commit()
-        self.chats.mount(Static(f"tool_call: {event.name}({event.args})"))
+        wdg = Static(f"tool_call: {event.name}({event.args})")
+        wdg.styles.color = "yellow"
+        wdg.styles.text_align = "center"
+        self.chats.mount(wdg)
 
     def __commit(self):
         self.current = None
         self.build_str = ""
         self.mode = None
+
+        children = list(self.chats.children)
+        while len(children) > MAX_WIDGETS:
+            oldest = children.pop(0)
+            oldest.remove()
 
     def on_commit_message(self, event: CommitMessage):
         self.__commit()
@@ -192,6 +209,9 @@ class UI(App):
             self.context_info,
             self.commit,
         )
+
+    def on_mount(self) -> None:
+        self.input.focus()
 
 
 if __name__ == "__main__":
