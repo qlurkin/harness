@@ -1,5 +1,6 @@
 import importlib
 import pkgutil
+from enum import Enum, auto
 
 from harness import tools
 
@@ -7,6 +8,12 @@ _TOOLS = []
 _TOOL_FUNCTIONS = {}
 _TOOL_SAFE = {}
 _APPROVED = {}
+
+
+class Permission(Enum):
+    ALLOW = auto()
+    ALWAYS = auto()
+    DENIED = auto()
 
 
 def register_tool(mod):
@@ -19,18 +26,22 @@ def get_tools():
     return _TOOLS
 
 
-def ask_permission(name):
-    ans = input(f"allow {name}? [y]es once / [a]lways / [n]o\n")
-    if ans.lower() == "y":
+def ask_permission(name, ask_function):
+    ans = ask_function(name)
+    if ans is Permission.ALLOW:
         return True
-    if ans.lower() == "a":
+    if ans is Permission.ALWAYS:
         _APPROVED[name] = True
         return True
     return False
 
 
-def call_tool(name, args):
-    if _TOOL_SAFE[name] or _APPROVED.get("name", False) or ask_permission(name):
+def call_tool(name, args, ask_function):
+    if (
+        _TOOL_SAFE[name]
+        or _APPROVED.get("name", False)
+        or ask_permission(name, ask_function)
+    ):
         try:
             result = _TOOL_FUNCTIONS[name](args)
         except KeyError:
@@ -40,8 +51,8 @@ def call_tool(name, args):
         return f"Call to {name} denied by the user. Do not retry the same call. Explain what you want to do, or try a different approach."
 
 
-def print_tools():
-    print(f"Loaded Tools: {', '.join(_TOOL_FUNCTIONS.keys())}")
+def get_registered_tools():
+    return [t.function.name for t in _TOOLS]
 
 
 for info in pkgutil.iter_modules(tools.__path__):
