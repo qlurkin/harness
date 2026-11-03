@@ -1,7 +1,7 @@
 from rich.markdown import Markdown
 from rich.text import Text
 from textual.app import App, ComposeResult
-from textual.widgets import Footer, Header, Input, RichLog
+from textual.widgets import Footer, Header, Input, Label, RichLog
 
 from harness import harness
 from harness.structs import Message
@@ -10,6 +10,18 @@ from harness.tools import Permission
 
 
 class UI(App):
+    CSS = """
+    #builder {
+        height: auto;
+        width: 100%;
+    }
+
+    RichLog, Label {
+        background: $surface;
+        color: $foreground;
+    }
+    """
+
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
         self.title = "Harness"
@@ -20,9 +32,11 @@ class UI(App):
         yield Header()
         self.chats = RichLog(wrap=True)
         yield self.chats
-        self.builder = RichLog(wrap=True)
+        self.builder = Label(id="builder")
+        self.builder.display = False
         yield self.builder
-        yield Input(placeholder="Prompt")
+        self.input = Input(placeholder="Prompt")
+        yield self.input
         yield Footer()
 
     def write(self, content):
@@ -37,20 +51,20 @@ class UI(App):
         return text
 
     def write_response(self, content):
+        self.builder.display = True
         if self.mode != "response":
             self.commit()
             self.mode = "response"
-        self.builder.clear()
         self.build_str += content
-        self.builder.write(self.format_response(self.build_str))
+        self.builder.update(self.format_response(self.build_str))
 
     def write_thinking(self, content):
+        self.builder.display = True
         if self.mode != "thinking":
             self.commit()
             self.mode = "thinking"
-        self.builder.clear()
         self.build_str += content
-        self.builder.write(self.format_thinking(self.build_str))
+        self.builder.update(self.format_thinking(self.build_str))
 
     def commit(self):
         if self.mode == "thinking":
@@ -58,7 +72,8 @@ class UI(App):
         elif self.mode == "response":
             self.chats.write(self.format_response(self.build_str))
         self.build_str = ""
-        self.builder.clear()
+        self.builder.update("")
+        self.builder.display = False
 
     def write_tool_call(self, name, args):
         self.commit()
@@ -79,6 +94,8 @@ class UI(App):
         self.run_worker(self.process(), exclusive=True, thread=True)
 
     async def process(self):
+        # self.input.disabled = True
+        # self.call_from_thread(setattr, self.input, "disabled", True)
         harness(
             self.conversation,
             self.write_response,
@@ -88,6 +105,7 @@ class UI(App):
             self.context_info,
             self.commit,
         )
+        # self.call_from_thread(setattr, self.input, "disabled", False)
 
 
 if __name__ == "__main__":
