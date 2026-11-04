@@ -1,3 +1,5 @@
+import asyncio
+
 from textual.app import App, ComposeResult
 from textual.containers import VerticalGroup, VerticalScroll
 from textual.message import Message as TextualMessage
@@ -33,6 +35,13 @@ class ContextInfoMessage(TextualMessage):
     def __init__(self, used: int, total: int) -> None:
         self.used = used
         self.total = total
+        super().__init__()
+
+
+class AskPermissionMessage(TextualMessage):
+    def __init__(self, name, resolve) -> None:
+        self.name = name
+        self.resolve = resolve
         super().__init__()
 
 
@@ -155,6 +164,11 @@ class UI(App):
         wdg.styles.text_align = "center"
         self.chats.mount(wdg)
 
+    def on_ask_permission_message(self, event: AskPermissionMessage):
+        self.__commit()
+        self.chats.mount(Static(f"Permission for {event.name} asked"))
+        event.resolve(Permission.DENIED)
+
     def __commit(self):
         self.current = None
         self.build_str = ""
@@ -187,8 +201,16 @@ class UI(App):
     def context_info(self, used, total):
         self.post_message(ContextInfoMessage(used, total))
 
-    def ask_permission(self, name):
-        return Permission.DENIED
+    async def ask_permission(self, name):
+        loop = asyncio.get_running_loop()
+        future = loop.create_future()
+
+        def resolve(value):
+            if not future.done():
+                loop.call_soon_threadsafe(future.set_result, value)
+
+        self.post_message(AskPermissionMessage(name, resolve))
+        return await future
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         prompt = event.value
@@ -200,7 +222,7 @@ class UI(App):
         self.run_worker(self.process(), exclusive=True, thread=True)
 
     async def process(self):
-        harness(
+        await harness(
             self.conversation,
             self.write_response,
             self.write_thinking,

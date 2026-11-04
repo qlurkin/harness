@@ -1,3 +1,5 @@
+import asyncio
+
 from .chat import ChatError, chat
 from .config import MODEL, NUM_CTX
 from .structs import Message
@@ -9,18 +11,21 @@ from .tools import Permission, call_tool, get_registered_tools
 # - ask_permission in UI
 # - display context info in menu bar in UI
 # - drop_down for model selection
+# - dracula
 
 
-def process_tool_calls(tool_calls, stream_tool_call, ask_permission):
+async def process_tool_calls(tool_calls, stream_tool_call, ask_permission):
     results = []
     for tc in tool_calls:
         stream_tool_call(tc.function.name, tc.function.arguments)
-        result = call_tool(tc.function.name, tc.function.arguments, ask_permission)
+        result = await call_tool(
+            tc.function.name, tc.function.arguments, ask_permission
+        )
         results.append(Message("tool", result, tool_name=tc.function.name))
     return results
 
 
-def harness(
+async def harness(
     conversation,
     stream_response,
     stream_thinking,
@@ -45,7 +50,7 @@ def harness(
                         reply.content += chunk.content
                     reply.tool_calls.extend(chunk.tool_calls)
                     tool_results.extend(
-                        process_tool_calls(
+                        await process_tool_calls(
                             chunk.tool_calls, stream_tool_call, ask_permission
                         )
                     )
@@ -67,7 +72,7 @@ def harness(
     commit()
 
 
-def simple_terminal() -> None:
+async def simple_terminal() -> None:
     print(f"harness v0.5 — chatting with {MODEL} (ctrl-c to quit)")
     print(f"Loaded Tools: {', '.join(get_registered_tools())}")
 
@@ -106,7 +111,7 @@ def simple_terminal() -> None:
         print(format_tool_call(f"  ⚙{name}({args})"), end="")
         last_write = "tool_call"
 
-    def ask_permission(name) -> Permission:
+    async def ask_permission(name) -> Permission:
         nonlocal last_write
         ans = input(f"allow {name}? [y]es once / [a]lways / [n]o\n")
         if ans.lower() == "y":
@@ -130,7 +135,7 @@ def simple_terminal() -> None:
             last_write = "you"
             conversation.append(Message("user", msg))
 
-            harness(
+            await harness(
                 conversation,
                 write_response,
                 write_thinking,
@@ -146,4 +151,4 @@ def simple_terminal() -> None:
 
 
 def main() -> None:
-    simple_terminal()
+    asyncio.run(simple_terminal())

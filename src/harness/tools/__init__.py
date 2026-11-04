@@ -26,8 +26,8 @@ def get_tools():
     return _TOOLS
 
 
-def ask_permission(name, ask_function):
-    ans = ask_function(name)
+async def ask_permission(name, ask_function):
+    ans = await ask_function(name)
     if ans is Permission.ALLOW:
         return True
     if ans is Permission.ALWAYS:
@@ -36,11 +36,11 @@ def ask_permission(name, ask_function):
     return False
 
 
-def call_tool(name, args, ask_function):
+async def call_tool(name, args, ask_function):
     if (
         _TOOL_SAFE[name]
         or _APPROVED.get("name", False)
-        or ask_permission(name, ask_function)
+        or await ask_permission(name, ask_function)
     ):
         try:
             result = _TOOL_FUNCTIONS[name](args)
