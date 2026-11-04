@@ -8,7 +8,6 @@ from .tools import Permission, call_tool, get_registered_tools
 
 # TODO:
 # - ensure list_files and edit_file are in project
-# - ask_permission in UI
 # - display context info in menu bar in UI
 # - drop_down for model selection
 # - dracula

@@ -1,15 +1,52 @@
 import asyncio
 
+from rich.align import Align
+from rich.table import Table
 from textual.app import App, ComposeResult
-from textual.containers import VerticalGroup, VerticalScroll
+from textual.containers import (
+    Center,
+    HorizontalGroup,
+    VerticalGroup,
+    VerticalScroll,
+)
 from textual.message import Message as TextualMessage
-from textual.widgets import Collapsible, Footer, Header, Input, Markdown, Static
+from textual.widgets import Button, Collapsible, Footer, Header, Input, Markdown, Static
 
 from harness import harness
 from harness.config import MAX_WIDGETS
 from harness.structs import Message
 from harness.system_prompt import system_prompt
 from harness.tools import Permission
+
+
+class AskPermissionWidget(VerticalGroup):
+    DEFAULT_CSS = """
+    HorizontalGroup {
+        width: 100%;
+        align: center middle;
+    }
+    """
+
+    def __init__(self, event: AskPermissionMessage):
+        self.event = event
+        super().__init__()
+
+    def compose(self):
+        yield Static(Align.center(f"Permission to use {self.event.name} tool ?"))
+        with HorizontalGroup():
+            yield Button("Deny", id="deny", variant="error")
+            yield Button("Allow", id="allow", variant="success")
+            yield Button("Always", id="always", variant="warning")
+
+    def on_button_pressed(self, event: Button.Pressed):
+        button_id = event.button.id
+        if button_id == "deny":
+            self.event.resolve(Permission.DENIED)
+        if button_id == "allow":
+            self.event.resolve(Permission.ALLOW)
+        if button_id == "always":
+            self.event.resolve(Permission.ALWAYS)
+        self.remove()
 
 
 class ThinkingMessage(TextualMessage):
@@ -108,6 +145,9 @@ class ThinkingWidget(VerticalGroup):
     def append(self, content):
         self.md.append(content)
 
+    def collapse(self):
+        self.query_one(Collapsible).collapsed = True
+
 
 class UI(App):
     CSS = """
@@ -159,17 +199,24 @@ class UI(App):
 
     def on_tool_call_message(self, event: ToolCallMessage):
         self.__commit()
-        wdg = Static(f"tool_call: {event.name}({event.args})")
-        wdg.styles.color = "yellow"
-        wdg.styles.text_align = "center"
+        table = Table(title=f"Call {event.name}")
+        table.add_column("Arg", justify="right", no_wrap=True)
+        table.add_column("Value", style="cyan")
+        for key, value in event.args.items():
+            table.add_row(key, value)
+        wdg = Static(Align.center(table))
         self.chats.mount(wdg)
 
     def on_ask_permission_message(self, event: AskPermissionMessage):
         self.__commit()
-        self.chats.mount(Static(f"Permission for {event.name} asked"))
-        event.resolve(Permission.DENIED)
+        wdg = AskPermissionWidget(event)
+        # self.current = wdg
+        # self.mode = "ask"
+        self.chats.mount(wdg)
 
     def __commit(self):
+        if isinstance(self.current, ThinkingWidget):
+            self.current.collapse()
         self.current = None
         self.build_str = ""
         self.mode = None
