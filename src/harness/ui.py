@@ -4,7 +4,6 @@ from rich.align import Align
 from rich.table import Table
 from textual.app import App, ComposeResult
 from textual.containers import (
-    Center,
     HorizontalGroup,
     VerticalGroup,
     VerticalScroll,
@@ -12,8 +11,8 @@ from textual.containers import (
 from textual.message import Message as TextualMessage
 from textual.widgets import Button, Collapsible, Footer, Header, Input, Markdown, Static
 
-from harness import harness
 from harness.config import MAX_WIDGETS
+from harness.harness import harness
 from harness.structs import Message
 from harness.system_prompt import system_prompt
 from harness.tools import Permission
