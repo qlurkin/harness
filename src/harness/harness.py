@@ -16,6 +16,7 @@ async def process_tool_calls(tool_calls, stream_tool_call, ask_permission):
 
 
 async def harness(
+    model,
     conversation,
     stream_response,
     stream_thinking,
@@ -27,7 +28,7 @@ async def harness(
     try:
         while True:
             try:
-                chunks = chat(conversation)
+                chunks = chat(model, conversation)
                 used = 0
                 reply = Message("assistant", "")
                 tool_results = []

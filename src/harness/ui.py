@@ -3,15 +3,27 @@ import asyncio
 from rich.align import Align
 from rich.table import Table
 from textual.app import App, ComposeResult
+from textual.color import Gradient
 from textual.containers import (
     HorizontalGroup,
     VerticalGroup,
     VerticalScroll,
 )
 from textual.message import Message as TextualMessage
-from textual.widgets import Button, Collapsible, Footer, Header, Input, Markdown, Static
+from textual.widgets import (
+    Button,
+    Collapsible,
+    Footer,
+    Header,
+    Input,
+    Label,
+    Markdown,
+    ProgressBar,
+    Select,
+    Static,
+)
 
-from harness.config import MAX_WIDGETS
+from harness.config import MAX_WIDGETS, MODELS, NUM_CTX
 from harness.harness import harness
 from harness.structs import Message
 from harness.system_prompt import system_prompt
@@ -150,32 +162,66 @@ class ThinkingWidget(VerticalGroup):
 
 class UI(App):
     CSS = """
-    #builder {
-        height: auto;
-        width: 100%;
+    #menu {
+        background: $surface;
     }
 
-    RichLog, Label {
-        background: $surface;
-        color: $foreground;
+    #context {
+        padding: 1;
+        align-horizontal: center;
     }
     """
 
-    def compose(self) -> ComposeResult:
-        """Create child widgets for the app."""
+    def __init__(self):
+        super().__init__()
         self.title = "Harness"
         self.build_str = ""
         self.mode = None
         self.conversation = [Message("system", system_prompt())]
         self.current = None
+        self.models = MODELS
+        self.model = self.models[0]
+
+    def compose(self) -> ComposeResult:
+        """Create child widgets for the app."""
+
+        gradient = Gradient.from_colors(
+            "#881177",
+            "#aa3355",
+            "#cc6666",
+            "#ee9944",
+            "#eedd00",
+            "#99dd55",
+            "#44dd88",
+            "#22ccbb",
+            "#00bbcc",
+            "#0099cc",
+            "#3366bb",
+            "#663399",
+        )
 
         yield Header()
+        with HorizontalGroup(id="menu"):
+            yield Select(
+                ((line, line) for line in self.models), prompt="Model", value=self.model
+            )
+            with HorizontalGroup(id="context"):
+                yield Label("Context: ")
+                yield ProgressBar(
+                    show_eta=False, total=NUM_CTX, gradient=gradient, name="Context"
+                )
         self.chats = VerticalScroll()
         self.chats.anchor(True)
         yield self.chats
         self.input = Input(placeholder="Prompt")
         yield self.input
         yield Footer()
+
+    def on_select_changed(self, event: Select.Changed):
+        self.model = str(event.value)
+
+    def set_context_info(self, value, total):
+        self.query_one(ProgressBar).update(progress=value, total=total)
 
     def on_response_message(self, event: ResponseMessage):
         content = event.content
@@ -230,7 +276,8 @@ class UI(App):
 
     def on_context_info_message(self, event: ContextInfoMessage):
         self.__commit()
-        self.chats.mount(Static(f"context: {event.used}/{event.total}"))
+        # self.chats.mount(Static(f"context: {event.used}/{event.total}"))
+        self.set_context_info(event.used, event.total)
 
     def write_response(self, content):
         self.post_message(ResponseMessage(content))
@@ -269,6 +316,7 @@ class UI(App):
 
     async def process(self):
         await harness(
+            self.model,
             self.conversation,
             self.write_response,
             self.write_thinking,

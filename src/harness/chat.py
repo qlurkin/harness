@@ -1,7 +1,7 @@
 import urllib.request
 from collections.abc import Generator
 
-from .config import MODEL, NUM_CTX, OLLAMA_URL
+from .config import NUM_CTX, OLLAMA_URL
 from .serialisation import dumps, loads
 from .structs import ChatRequest, Message
 from .tools import get_tools
@@ -11,10 +11,10 @@ class ChatError(Exception):
     pass
 
 
-def chat(messages: list[Message]) -> Generator[tuple[Message, int]]:
+def chat(model, messages: list[Message]) -> Generator[tuple[Message, int]]:
     body = dumps(
         ChatRequest(
-            model=MODEL,
+            model=model,
             messages=messages,
             tools=get_tools(),
             options={"num_ctx": NUM_CTX},

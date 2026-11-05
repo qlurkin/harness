@@ -3,3 +3,4 @@ MODEL = "gemma4:12b-mlx"
 # MODEL = "gemma4:e4b-mlx"
 NUM_CTX = 16384
 MAX_WIDGETS = 500
+MODELS = ["gemma4:12b-mlx", "gemma4:e4b-mlx"]

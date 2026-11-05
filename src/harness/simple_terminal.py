@@ -70,6 +70,7 @@ async def simple_terminal() -> None:
             conversation.append(Message("user", msg))
 
             await harness(
+                MODEL,
                 conversation,
                 write_response,
                 write_thinking,
