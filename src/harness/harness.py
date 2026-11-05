@@ -1,4 +1,7 @@
-from .chat import ChatError, chat
+import json
+
+from .chat import ChatError
+from .chat2 import chat
 from .config import NUM_CTX
 from .structs import Message
 from .tools import call_tool
@@ -7,11 +10,14 @@ from .tools import call_tool
 async def process_tool_calls(tool_calls, stream_tool_call, ask_permission):
     results = []
     for tc in tool_calls:
-        stream_tool_call(tc.function.name, tc.function.arguments)
+        args = json.loads(tc["function"]["arguments"])
+        stream_tool_call(tc["function"]["name"], args)
         result = await call_tool(
-            tc.function.name, tc.function.arguments, ask_permission
+            tc["function"]["name"],
+            args,
+            ask_permission,
         )
-        results.append(Message("tool", result, tool_name=tc.function.name))
+        results.append(Message("tool", result, tool_name=tc["function"]["name"]))
     return results
 
 
@@ -24,11 +30,12 @@ async def harness(
     ask_permission,
     context_info,
     commit,
+    log,
 ):
     try:
         while True:
             try:
-                chunks = chat(model, conversation)
+                chunks = chat(model, conversation, log)
                 used = 0
                 reply = Message("assistant", "")
                 tool_results = []

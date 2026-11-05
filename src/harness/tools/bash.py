@@ -1,24 +1,22 @@
 from subprocess import PIPE, STDOUT, run
 from typing import Any
 
-from ..structs import Tool, ToolFunction
-
 SAFE = False
 
-description = Tool(
-    "function",
-    ToolFunction(
-        "bash",
-        "Execute a shell command and return its combined stdout and stderr. Use for running tests, builds, git, and anything without a dedicated tool.",
-        {
+description = {
+    "type": "function",
+    "function": {
+        "name": "bash",
+        "description": "Execute a shell command and return its combined stdout and stderr. Use for running tests, builds, git, and anything without a dedicated tool.",
+        "parameters": {
             "type": "object",
             "properties": {
                 "command": {"type": "string", "description": "The shell command to run"}
             },
             "required": ["command"],
         },
-    ),
-)
+    },
+}
 
 
 def function(args: dict[str, Any]):

@@ -33,7 +33,7 @@ class Message:
     role: str
     content: str
     thinking: str = ""
-    tool_calls: list[ToolCall] = field(default_factory=list)
+    tool_calls: list = field(default_factory=list)
     tool_name: str = ""
 
 

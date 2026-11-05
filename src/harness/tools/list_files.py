@@ -1,16 +1,14 @@
 import os
 from typing import Any
 
-from ..structs import Tool, ToolFunction
-
 SAFE = True
 
-description = Tool(
-    "function",
-    ToolFunction(
-        "list_files",
-        "Recursively list files under a directory. Use this to discover what exists before reading files.",
-        {
+description = {
+    "type": "function",
+    "function": {
+        "name": "list_files",
+        "description": "Recursively list files under a directory. Use this to discover what exists before reading files.",
+        "parameters": {
             "type": "object",
             "properties": {
                 "path": {
@@ -19,8 +17,8 @@ description = Tool(
                 }
             },
         },
-    ),
-)
+    },
+}
 
 
 def function(args: dict[str, Any]):

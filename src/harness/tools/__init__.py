@@ -18,8 +18,8 @@ class Permission(Enum):
 
 def register_tool(mod):
     _TOOLS.append(mod.description)
-    _TOOL_FUNCTIONS[mod.description.function.name] = mod.function
-    _TOOL_SAFE[mod.description.function.name] = mod.SAFE
+    _TOOL_FUNCTIONS[mod.description["function"]["name"]] = mod.function
+    _TOOL_SAFE[mod.description["function"]["name"]] = mod.SAFE
 
 
 def get_tools():

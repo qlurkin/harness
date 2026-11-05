@@ -3,13 +3,9 @@ name = "harness"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-authors = [
-    { name = "Quentin Lurkin", email = "qlurkin@gmail.com" }
-]
+authors = [{ name = "Quentin Lurkin", email = "qlurkin@gmail.com" }]
 requires-python = ">=3.14"
-dependencies = [
-    "textual>=8.2.8",
-]
+dependencies = ["litellm[mcp]==1.108.0", "textual>=8.2.8"]
 
 [project.scripts]
 harness = "harness:main"

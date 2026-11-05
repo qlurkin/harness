@@ -1,16 +1,14 @@
 from pathlib import Path
 from typing import Any
 
-from ..structs import Tool, ToolFunction
-
 SAFE = True
 
-description = Tool(
-    "function",
-    ToolFunction(
-        "edit_file",
-        "Edit a file by replacing old_string (which must occur exactly once) with new_string. If old_string is empty and the file does not exist, the file is created with new_string as its contents.",
-        {
+description = {
+    "type": "function",
+    "function": {
+        "name": "edit_file",
+        "description": "Edit a file by replacing old_string (which must occur exactly once) with new_string. If old_string is empty and the file does not exist, the file is created with new_string as its contents.",
+        "parameters": {
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "Relative path to the file"},
@@ -22,8 +20,8 @@ description = Tool(
             },
             "required": ["path", "new_string"],
         },
-    ),
-)
+    },
+}
 
 
 def function(args: dict[str, Any]):

@@ -97,6 +97,12 @@ class CommitMessage(TextualMessage):
     pass
 
 
+class WriteMessage(TextualMessage):
+    def __init__(self, content):
+        self.content = content
+        super().__init__()
+
+
 class PromptWidget(VerticalGroup):
     DEFAULT_CSS = """
     PromptWidget {
@@ -203,7 +209,9 @@ class UI(App):
         yield Header()
         with HorizontalGroup(id="menu"):
             yield Select(
-                ((line, line) for line in self.models), prompt="Model", value=self.model
+                ((model, model) for model in self.models),
+                prompt="Model",
+                value=self.model,
             )
             with HorizontalGroup(id="context"):
                 yield Label("Context: ")
@@ -217,8 +225,12 @@ class UI(App):
         yield self.input
         yield Footer()
 
+    def on_write_message(self, event: WriteMessage):
+        self.chats.mount(Static(str(event.content), markup=False))
+
     def on_select_changed(self, event: Select.Changed):
         self.model = str(event.value)
+        self.write(self.model)
 
     def set_context_info(self, value, total):
         self.query_one(ProgressBar).update(progress=value, total=total)
@@ -294,6 +306,9 @@ class UI(App):
     def context_info(self, used, total):
         self.post_message(ContextInfoMessage(used, total))
 
+    def write(self, content):
+        self.post_message(WriteMessage(content))
+
     async def ask_permission(self, name):
         loop = asyncio.get_running_loop()
         future = loop.create_future()
@@ -324,6 +339,7 @@ class UI(App):
             self.ask_permission,
             self.context_info,
             self.commit,
+            self.write,
         )
 
     def on_mount(self) -> None:

@@ -1,23 +1,21 @@
 from typing import Any
 
-from ..structs import Tool, ToolFunction
-
 SAFE = True
 
-description = Tool(
-    "function",
-    ToolFunction(
-        "read_file",
-        "Read a file and return its contents as text. Use this whenever you need to see what a file contains.",
-        {
+description = {
+    "type": "function",
+    "function": {
+        "name": "read_file",
+        "description": "Read a file and return its contents as text. Use this whenever you need to see what a file contains.",
+        "parameters": {
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "Relative path to the file"}
             },
             "required": ["path"],
         },
-    ),
-)
+    },
+}
 
 
 def function(args: dict[str, Any]):
