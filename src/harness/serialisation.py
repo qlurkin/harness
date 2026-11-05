@@ -46,8 +46,8 @@ def json_default(obj):
     raise TypeError(f"Type non sérialisable : {type(obj)}")
 
 
-def dumps(obj):
-    return json.dumps(obj, default=json_default)
+def dumps(obj, indent=None):
+    return json.dumps(obj, default=json_default, indent=indent)
 
 
 def loads(doc):

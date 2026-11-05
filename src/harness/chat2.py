@@ -48,7 +48,7 @@ def chat(
     tool_calls: dict[int, dict[str, Any]] = {}
 
     for chunk in stream:
-        log(chunk)
+        # log(chunk)
         usage = getattr(chunk, "usage", None)
         if usage:
             context_tokens = usage.prompt_tokens

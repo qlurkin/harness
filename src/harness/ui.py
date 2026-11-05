@@ -1,4 +1,6 @@
+from harness.serialisation import dumps
 import asyncio
+import json
 
 from rich.align import Align
 from rich.table import Table
@@ -178,6 +180,10 @@ class UI(App):
     }
     """
 
+    BINDINGS = [
+        ("d", "dump_conversation", "Dump Conversation"),
+    ]
+
     def __init__(self):
         super().__init__()
         self.title = "Harness"
@@ -344,6 +350,10 @@ class UI(App):
 
     def on_mount(self) -> None:
         self.input.focus()
+
+    def action_dump_conversation(self):
+        with open("conversation.json", "w") as file:
+            file.write(dumps(self.conversation, indent=3))
 
 
 if __name__ == "__main__":
