@@ -1,6 +1,4 @@
-from harness.serialisation import dumps
 import asyncio
-import json
 
 from rich.align import Align
 from rich.table import Table
@@ -27,6 +25,7 @@ from textual.widgets import (
 
 from harness.config import MAX_WIDGETS, MODELS, NUM_CTX
 from harness.harness import harness
+from harness.serialisation import dumps
 from harness.structs import Message
 from harness.system_prompt import system_prompt
 from harness.tools import Permission

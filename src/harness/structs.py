@@ -34,6 +34,7 @@ class Message:
     content: str
     thinking: str = ""
     tool_calls: list = field(default_factory=list)
+    tool_call_id: str = ""
     tool_name: str = ""
 
 

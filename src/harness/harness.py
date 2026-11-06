@@ -17,7 +17,11 @@ async def process_tool_calls(tool_calls, stream_tool_call, ask_permission):
             args,
             ask_permission,
         )
-        results.append(Message("tool", result, tool_name=tc["function"]["name"]))
+        results.append(
+            Message(
+                "tool", result, tool_call_id=tc["id"], tool_name=tc["function"]["name"]
+            )
+        )
     return results
 
 

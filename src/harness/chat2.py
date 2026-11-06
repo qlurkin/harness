@@ -1,6 +1,4 @@
-import json
 from collections.abc import Generator
-from dataclasses import asdict
 from typing import Any
 
 from litellm import completion, get_model_info, token_counter
@@ -11,13 +9,31 @@ from harness.structs import Message
 from harness.tools import get_tools
 
 
+def dump_message(msg: Message):
+    res = {"role": msg.role}
+    if len(msg.content) > 0:
+        res["content"] = msg.content
+    else:
+        res["content"] = None
+    if len(msg.tool_calls) > 0:
+        res["tool_calls"] = msg.tool_calls
+    if len(msg.tool_call_id) > 0:
+        res["tool_call_id"] = msg.tool_call_id
+    if len(msg.tool_name) > 0:
+        res["name"] = msg.tool_name
+    return res
+
+
 def chat(
     model_id: str,
     messages: list[Message],
     log,
 ) -> Generator[tuple[Message, int]]:
 
-    raw_messages = [asdict(m) for m in messages]
+    raw_messages = [dump_message(m) for m in messages]
+
+    # with open("raw_messages.json", "w") as file:
+    #     json.dump(raw_messages, file, indent=4, ensure_ascii=False)
 
     # Estimation du contexte avant l'appel
     context_tokens = token_counter(
