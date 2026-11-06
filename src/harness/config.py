@@ -3,4 +3,8 @@ MODEL = "gemma4:12b-mlx"
 # MODEL = "gemma4:e4b-mlx"
 NUM_CTX = 16384
 MAX_WIDGETS = 500
-MODELS = ["ollama_chat/gemma4:12b-mlx", "ollama_chat/gemma4:e4b-mlx"]
+MODELS = [
+    "ollama_chat/gemma4:12b-mlx",
+    "ollama_chat/gemma4:e4b-mlx",
+    "github_copilot/claude-sonnet-5.5",
+]

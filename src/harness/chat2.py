@@ -48,9 +48,13 @@ def chat(
     if context_limit is not None and context_tokens >= context_limit:
         raise ValueError(f"Context limit exceeded: {context_tokens}/{context_limit}")
 
+    api_base = None
+    if model_id.startswith("ollama"):
+        api_base = "http://localhost:11434"
+
     stream = completion(
         model=model_id,
-        api_base="http://localhost:11434",
+        api_base=api_base,
         messages=raw_messages,
         tools=get_tools(),
         tool_choice="auto",

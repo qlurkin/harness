@@ -10,7 +10,10 @@ from .tools import call_tool
 async def process_tool_calls(tool_calls, stream_tool_call, ask_permission):
     results = []
     for tc in tool_calls:
-        args = json.loads(tc["function"]["arguments"])
+        if len(tc["function"]["arguments"]) > 0:
+            args = json.loads(tc["function"]["arguments"])
+        else:
+            args = {}
         stream_tool_call(tc["function"]["name"], args)
         result = await call_tool(
             tc["function"]["name"],
