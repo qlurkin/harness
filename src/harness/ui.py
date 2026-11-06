@@ -23,8 +23,10 @@ from textual.widgets import (
     Static,
 )
 
-from harness.config import MAX_WIDGETS, MODELS, NUM_CTX
+from harness.chat import get_context_limit
+from harness.config import MAX_WIDGETS, MODEL
 from harness.harness import harness
+from harness.providers import list_models
 from harness.serialisation import dumps
 from harness.structs import Message
 from harness.system_prompt import system_prompt
@@ -81,9 +83,8 @@ class ToolCallMessage(TextualMessage):
 
 
 class ContextInfoMessage(TextualMessage):
-    def __init__(self, used: int, total: int) -> None:
+    def __init__(self, used: int) -> None:
         self.used = used
-        self.total = total
         super().__init__()
 
 
@@ -179,7 +180,7 @@ class UI(App):
     }
     """
 
-    BINDINGS = [
+    BINDINGS = [  # noqa: RUF012
         ("d", "dump_conversation", "Dump Conversation"),
     ]
 
@@ -190,8 +191,9 @@ class UI(App):
         self.mode = None
         self.conversation = [Message("system", system_prompt())]
         self.current = None
-        self.models = MODELS
-        self.model = self.models[0]
+        self.models = list_models()
+        self.model = MODEL if MODEL in self.models else self.models[0]
+        self.context_limit = get_context_limit(self.model)
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
@@ -221,7 +223,10 @@ class UI(App):
             with HorizontalGroup(id="context"):
                 yield Label("Context: ")
                 yield ProgressBar(
-                    show_eta=False, total=NUM_CTX, gradient=gradient, name="Context"
+                    show_eta=False,
+                    total=self.context_limit,
+                    gradient=gradient,
+                    name="Context",
                 )
         self.chats = VerticalScroll()
         self.chats.anchor(True)
@@ -235,10 +240,10 @@ class UI(App):
 
     def on_select_changed(self, event: Select.Changed):
         self.model = str(event.value)
-        self.write(self.model)
+        self.context_limit = get_context_limit(self.model)
 
-    def set_context_info(self, value, total):
-        self.query_one(ProgressBar).update(progress=value, total=total)
+    def set_context_info(self, value):
+        self.query_one(ProgressBar).update(progress=value, total=self.context_limit)
 
     def on_response_message(self, event: ResponseMessage):
         content = event.content
@@ -294,7 +299,7 @@ class UI(App):
     def on_context_info_message(self, event: ContextInfoMessage):
         self.__commit()
         # self.chats.mount(Static(f"context: {event.used}/{event.total}"))
-        self.set_context_info(event.used, event.total)
+        self.set_context_info(event.used)
 
     def write_response(self, content):
         self.post_message(ResponseMessage(content))
@@ -308,8 +313,8 @@ class UI(App):
     def write_tool_call(self, name, args):
         self.post_message(ToolCallMessage(name, args))
 
-    def context_info(self, used, total):
-        self.post_message(ContextInfoMessage(used, total))
+    def context_info(self, used):
+        self.post_message(ContextInfoMessage(used))
 
     def write(self, content):
         self.post_message(WriteMessage(content))

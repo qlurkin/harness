@@ -1,8 +1,6 @@
 import json
 
-from .chat import ChatError
-from .chat2 import chat
-from .config import NUM_CTX
+from .chat import chat
 from .structs import Message
 from .tools import call_tool
 
@@ -41,32 +39,27 @@ async def harness(
 ):
     try:
         while True:
-            try:
-                chunks = chat(model, conversation, log)
-                used = 0
-                reply = Message("assistant", "")
-                tool_results = []
-                for chunk, usage in chunks:
-                    used += usage
-                    if len(chunk.thinking) > 0:
-                        stream_thinking(chunk.thinking)
-                    if len(chunk.content) > 0:
-                        stream_response(chunk.content)
-                        reply.content += chunk.content
-                    reply.tool_calls.extend(chunk.tool_calls)
-                    tool_results.extend(
-                        await process_tool_calls(
-                            chunk.tool_calls, stream_tool_call, ask_permission
-                        )
+            chunks = chat(model, conversation, log)
+            used = 0
+            reply = Message("assistant", "")
+            tool_results = []
+            for chunk, usage in chunks:
+                used += usage
+                if len(chunk.thinking) > 0:
+                    stream_thinking(chunk.thinking)
+                if len(chunk.content) > 0:
+                    stream_response(chunk.content)
+                    reply.content += chunk.content
+                reply.tool_calls.extend(chunk.tool_calls)
+                tool_results.extend(
+                    await process_tool_calls(
+                        chunk.tool_calls, stream_tool_call, ask_permission
                     )
-
-            except ChatError as e:
-                print(f"ChatError: {e}")
-                break
+                )
 
             conversation.append(reply)
 
-            context_info(used, NUM_CTX)
+            context_info(used)
 
             if len(tool_results) == 0:
                 break
