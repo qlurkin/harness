@@ -143,10 +143,11 @@ class ResponseWidget(VerticalGroup):
         self.label = Static("Harness:\n", id="title")
         yield self.label
         self.md = Markdown()
+        self.stream = Markdown.get_stream(self.md)
         yield self.md
 
-    def append(self, content):
-        self.md.append(content)
+    async def append(self, content):
+        await self.stream.write(content)
 
 
 class ThinkingWidget(VerticalGroup):
@@ -159,10 +160,11 @@ class ThinkingWidget(VerticalGroup):
     def compose(self):
         with Collapsible(title="Thinking", collapsed=False):
             self.md = Markdown()
+            self.stream = Markdown.get_stream(self.md)
             yield self.md
 
-    def append(self, content):
-        self.md.append(content)
+    async def append(self, content):
+        await self.stream.write(content)
 
     def collapse(self):
         self.query_one(Collapsible).collapsed = True
@@ -245,7 +247,7 @@ class UI(App):
     def set_context_info(self, value):
         self.query_one(ProgressBar).update(progress=value, total=self.context_limit)
 
-    def on_response_message(self, event: ResponseMessage):
+    async def on_response_message(self, event: ResponseMessage):
         content = event.content
         if self.mode != "response":
             self.__commit()
@@ -253,16 +255,16 @@ class UI(App):
             self.current = ResponseWidget()
             self.chats.mount(self.current)
         assert self.current is not None
-        self.current.append(content)
+        await self.current.append(content)
 
-    def on_thinking_message(self, event: ThinkingMessage):
+    async def on_thinking_message(self, event: ThinkingMessage):
         if self.mode != "thinking":
             self.__commit()
             self.mode = "thinking"
             self.current = ThinkingWidget()
             self.chats.mount(self.current)
         assert self.current is not None
-        self.current.append(event.content)
+        await self.current.append(event.content)
 
     def on_tool_call_message(self, event: ToolCallMessage):
         self.__commit()
