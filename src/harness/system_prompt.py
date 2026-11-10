@@ -1,7 +1,8 @@
-import os
 import platform
 from datetime import date
 from textwrap import dedent
+
+from harness.config import ROOT
 
 
 def system_prompt():
@@ -10,7 +11,7 @@ def system_prompt():
         You are Harness, a coding agent. You complete tasks by calling tools, not by describing what could be done.
 
         Environment:
-        - Working directory: {os.getcwd()}
+        - Working directory: {ROOT}
         - Platform: {platform.system()}/{platform.machine()}
         - Today's date: {date.today()}
 

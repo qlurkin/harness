@@ -1,6 +1,13 @@
 provider = "github_copilot"
 api_base = None
 
+anthropic = [
+    "claude-haiku-5.5",
+    "claude-sonnet-5.5",
+    "claude-sonnet-5",
+    "claude-haiku-4.5",
+]
+
 
 def list_models():
     models = [

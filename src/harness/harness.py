@@ -1,7 +1,6 @@
 import json
 
-from .chat import chat
-from .structs import Message
+from .chat import Message, chat
 from .tools import call_tool
 
 
@@ -28,6 +27,7 @@ async def process_tool_calls(tool_calls, stream_tool_call, ask_permission):
 
 async def harness(
     model,
+    effort,
     conversation,
     stream_response,
     stream_thinking,
@@ -39,7 +39,7 @@ async def harness(
 ):
     try:
         while True:
-            chunks = chat(model, conversation, log)
+            chunks = chat(model, effort, conversation, log)
             used = 0
             reply = Message("assistant", "")
             tool_results = []
@@ -47,6 +47,8 @@ async def harness(
                 used += usage
                 if len(chunk.thinking) > 0:
                     stream_thinking(chunk.thinking)
+                    reply.thinking += chunk.thinking
+                    reply.thinking_blocks.extend(chunk.thinking_blocks)
                 if len(chunk.content) > 0:
                     stream_response(chunk.content)
                     reply.content += chunk.content

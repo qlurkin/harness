@@ -23,12 +23,11 @@ from textual.widgets import (
     Static,
 )
 
-from harness.chat import get_context_limit
+from harness.chat import Message, get_context_limit
 from harness.config import MAX_WIDGETS, MODEL
 from harness.harness import harness
 from harness.providers import list_models
 from harness.serialisation import dumps
-from harness.structs import Message
 from harness.system_prompt import system_prompt
 from harness.tools import Permission
 
@@ -196,6 +195,7 @@ class UI(App):
         self.models = list_models()
         self.model = MODEL if MODEL in self.models else self.models[0]
         self.context_limit = get_context_limit(self.model)
+        self.effort: str
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
@@ -221,6 +221,25 @@ class UI(App):
                 ((model, model) for model in self.models),
                 prompt="Model",
                 value=self.model,
+                id="model",
+            )
+            yield Select(
+                (
+                    (effort, effort)
+                    for effort in [
+                        "none",
+                        "minimal",
+                        "low",
+                        "medium",
+                        "high",
+                        "xhigh",
+                        "max",
+                        "default",
+                    ]
+                ),
+                prompt="Effort",
+                value="medium",
+                id="effort",
             )
             with HorizontalGroup(id="context"):
                 yield Label("Context: ")
@@ -241,8 +260,11 @@ class UI(App):
         self.chats.mount(Static(str(event.content), markup=False))
 
     def on_select_changed(self, event: Select.Changed):
-        self.model = str(event.value)
-        self.context_limit = get_context_limit(self.model)
+        if event.select.id == "model":
+            self.model = str(event.value)
+            self.context_limit = get_context_limit(self.model)
+        elif event.select.id == "effort":
+            self.effort = str(event.value)
 
     def set_context_info(self, value):
         self.query_one(ProgressBar).update(progress=value, total=self.context_limit)
@@ -344,6 +366,7 @@ class UI(App):
     async def process(self):
         await harness(
             self.model,
+            self.effort,
             self.conversation,
             self.write_response,
             self.write_thinking,

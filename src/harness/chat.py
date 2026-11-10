@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from dataclasses import dataclass, field
 from typing import Any
 
 from litellm import completion, get_model_info, token_counter
@@ -7,8 +8,18 @@ from litellm.types.utils import ChatCompletionDeltaToolCall
 
 from harness.config import NUM_CTX
 from harness.providers import get_api_base
-from harness.structs import Message
 from harness.tools import get_tools
+
+
+@dataclass
+class Message:
+    role: str
+    content: str
+    thinking: str = ""
+    tool_calls: list = field(default_factory=list)
+    tool_call_id: str = ""
+    tool_name: str = ""
+    thinking_blocks: list = field(default_factory=list)
 
 
 def dump_message(msg: Message):
@@ -23,6 +34,8 @@ def dump_message(msg: Message):
         res["tool_call_id"] = msg.tool_call_id
     if len(msg.tool_name) > 0:
         res["name"] = msg.tool_name
+    if len(msg.thinking_blocks) > 0:
+        res["thinking_blocks"] = msg.thinking_blocks
     return res
 
 
@@ -38,8 +51,13 @@ class ContextLimitExceeded(Exception):
     pass
 
 
+def is_anthropic_model(model_id):
+    return model_id.split("/")[1].startswith("claude")
+
+
 def chat(
     model_id: str,
+    effort: str,
     messages: list[Message],
     log,
 ) -> Generator[tuple[Message, int]]:
@@ -63,15 +81,21 @@ def chat(
 
     api_base = get_api_base(model_id.split("/")[0])
 
-    stream = completion(
-        model=model_id,
-        api_base=api_base,
-        messages=raw_messages,
-        tools=get_tools(),
-        tool_choice="auto",
-        stream=True,
-        stream_options={"include_usage": True},
-    )
+    params = {
+        "model": model_id,
+        "api_base": api_base,
+        "messages": raw_messages,
+        "tools": get_tools(),
+        "tool_choice": "auto",
+        "stream": True,
+        "stream_options": {"include_usage": True},
+        "reasoning_effort": effort,
+    }
+
+    if is_anthropic_model(model_id):
+        params["thinking"] = {"type": "enabled", "budget_tokens": 1024}
+
+    stream = completion(**params)
 
     assert isinstance(stream, CustomStreamWrapper)
 
@@ -95,10 +119,16 @@ def chat(
                 context_tokens,
             )
 
-        reasoning = getattr(delta, "reasoning_content", None)
-        if reasoning:
+        thinking = getattr(delta, "reasoning_content", None)
+        if thinking:
+            thinking_blocks = getattr(delta, "thinking_blocks", [])
             yield (
-                Message(role="assistant", content="", thinking=reasoning),
+                Message(
+                    role="assistant",
+                    content="",
+                    thinking=thinking,
+                    thinking_blocks=thinking_blocks,
+                ),
                 context_tokens,
             )
 
