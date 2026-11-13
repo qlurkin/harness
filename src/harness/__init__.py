@@ -1,6 +1,7 @@
 from harness.ui import UI
 
 # TODO:
+# - exec tools in subprocesses in parallele
 # - dracula
 # - Add Mistral Provider
 # - Add Compaction
@@ -9,6 +10,7 @@ from harness.ui import UI
 # - Add Skills
 # - Add Trust Store
 # - Add Session and Persistence
+# - OSC 7501
 
 
 def main() -> None:

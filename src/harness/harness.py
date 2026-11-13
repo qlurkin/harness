@@ -53,20 +53,19 @@ async def harness(
                     stream_response(chunk.content)
                     reply.content += chunk.content
                 reply.tool_calls.extend(chunk.tool_calls)
-                tool_results.extend(
-                    await process_tool_calls(
-                        chunk.tool_calls, stream_tool_call, ask_permission
-                    )
-                )
 
             conversation.append(reply)
 
             context_info(used)
 
-            if len(tool_results) == 0:
+            if len(reply.tool_calls) == 0:
                 break
 
-            conversation.extend(tool_results)
+            conversation.extend(
+                await process_tool_calls(
+                    reply.tool_calls, stream_tool_call, ask_permission
+                )
+            )
     except KeyboardInterrupt:
         print("\n(interrupted)")
     commit()
