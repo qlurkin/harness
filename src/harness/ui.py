@@ -2,6 +2,7 @@ import asyncio
 
 from rich.align import Align
 from rich.table import Table
+from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.color import Gradient
 from textual.containers import (
@@ -9,7 +10,6 @@ from textual.containers import (
     VerticalGroup,
     VerticalScroll,
 )
-from textual.message import Message as TextualMessage
 from textual.widgets import (
     Button,
     Collapsible,
@@ -23,12 +23,21 @@ from textual.widgets import (
     Static,
 )
 
-from harness.chat import Message, get_context_limit
-from harness.config import MAX_WIDGETS, MODEL
-from harness.harness import harness
-from harness.providers import list_models
+from harness.agent import (
+    Agent,
+    BusyError,
+    Content,
+    Event,
+    Log,
+    LogLevel,
+    Prompt,
+    Thinking,
+    ToolCall,
+    ToolPermisionRequest,
+    Usage,
+)
+from harness.config import MAX_WIDGETS
 from harness.serialisation import dumps
-from harness.system_prompt import system_prompt
 from harness.tools import Permission
 
 
@@ -40,7 +49,7 @@ class AskPermissionWidget(VerticalGroup):
     }
     """
 
-    def __init__(self, event: AskPermissionMessage):
+    def __init__(self, event: ToolPermisionRequest):
         self.event = event
         super().__init__()
 
@@ -60,48 +69,6 @@ class AskPermissionWidget(VerticalGroup):
         if button_id == "always":
             self.event.resolve(Permission.ALWAYS)
         self.remove()
-
-
-class ThinkingMessage(TextualMessage):
-    def __init__(self, content: str) -> None:
-        self.content = content
-        super().__init__()
-
-
-class ResponseMessage(TextualMessage):
-    def __init__(self, content: str) -> None:
-        self.content = content
-        super().__init__()
-
-
-class ToolCallMessage(TextualMessage):
-    def __init__(self, name: str, args: dict) -> None:
-        self.name = name
-        self.args = args
-        super().__init__()
-
-
-class ContextInfoMessage(TextualMessage):
-    def __init__(self, used: int) -> None:
-        self.used = used
-        super().__init__()
-
-
-class AskPermissionMessage(TextualMessage):
-    def __init__(self, name, resolve) -> None:
-        self.name = name
-        self.resolve = resolve
-        super().__init__()
-
-
-class CommitMessage(TextualMessage):
-    pass
-
-
-class WriteMessage(TextualMessage):
-    def __init__(self, content):
-        self.content = content
-        super().__init__()
 
 
 class PromptWidget(VerticalGroup):
@@ -150,12 +117,6 @@ class ResponseWidget(VerticalGroup):
 
 
 class ThinkingWidget(VerticalGroup):
-    # DEFAULT_CSS = """
-    # ThinkingWidget {
-    #     color: #808080;
-    # }
-    # """
-
     def compose(self):
         with Collapsible(title="Thinking", collapsed=False):
             self.md = Markdown()
@@ -188,14 +149,30 @@ class UI(App):
     def __init__(self):
         super().__init__()
         self.title = "Harness"
-        self.build_str = ""
-        self.mode = None
-        self.conversation = [Message("system", system_prompt())]
-        self.current = None
-        self.models = list_models()
-        self.model = MODEL if MODEL in self.models else self.models[0]
-        self.context_limit = get_context_limit(self.model)
-        self.effort: str
+        self.agent = Agent()
+        self.agent.subscribe(self.handle_agent_event)
+
+    async def handle_agent_event(self, event: Event):
+        if isinstance(event, Usage):
+            self.query_one(ProgressBar).update(progress=event.used, total=event.total)
+        if isinstance(event, Content):
+            await self.need(ResponseWidget).append(event)
+        if isinstance(event, Thinking):
+            await self.need(ThinkingWidget).append(event)
+        if isinstance(event, ToolCall):
+            table = Table(title=f"Call {event.name}")
+            table.add_column("Arg", justify="right", no_wrap=True)
+            table.add_column("Value", style="cyan")
+            for key, value in event.args.items():
+                table.add_row(key, value)
+            wdg = Static(Align.center(table))
+            self.append(wdg)
+        if isinstance(event, ToolPermisionRequest):
+            self.append(AskPermissionWidget(event))
+        if isinstance(event, Log):
+            self.write(event.msg, event.level)
+        if isinstance(event, Prompt):
+            self.need(PromptWidget).append(event)
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
@@ -218,171 +195,91 @@ class UI(App):
         yield Header()
         with HorizontalGroup(id="menu"):
             yield Select(
-                ((model, model) for model in self.models),
+                ((model, model) for model in self.agent.models),
                 prompt="Model",
-                value=self.model,
+                value=self.agent.model,
                 id="model",
             )
             yield Select(
-                (
-                    (effort, effort)
-                    for effort in [
-                        "none",
-                        "minimal",
-                        "low",
-                        "medium",
-                        "high",
-                        "xhigh",
-                        "max",
-                        "default",
-                    ]
-                ),
+                ((effort, effort) for effort in self.agent.efforts),
                 prompt="Effort",
-                value="medium",
+                value=self.agent.effort,
                 id="effort",
             )
             with HorizontalGroup(id="context"):
                 yield Label("Context: ")
                 yield ProgressBar(
                     show_eta=False,
-                    total=self.context_limit,
+                    total=self.agent.context_limit,
                     gradient=gradient,
                     name="Context",
                 )
-        self.chats = VerticalScroll()
-        self.chats.anchor(True)
-        yield self.chats
-        self.input = Input(placeholder="Prompt")
-        yield self.input
+        chats = VerticalScroll(id="chats")
+        chats.anchor(True)
+        yield chats
+        yield Input(placeholder="Prompt", id="prompt")
         yield Footer()
-
-    def on_write_message(self, event: WriteMessage):
-        self.chats.mount(Static(str(event.content), markup=False))
 
     def on_select_changed(self, event: Select.Changed):
         if event.select.id == "model":
-            self.model = str(event.value)
-            self.context_limit = get_context_limit(self.model)
+            self.agent.model = str(event.value)
         elif event.select.id == "effort":
-            self.effort = str(event.value)
+            self.agent.effort = str(event.value)
 
-    def set_context_info(self, value):
-        self.query_one(ProgressBar).update(progress=value, total=self.context_limit)
+    # def set_context_info(self, value):
+    # self.query_one(ProgressBar).update(progress=value, total=self.context_limit)
+    # self.write(f"  Context Used: {value}")
+    # if value > 0.8 * self.context_limit:
+    #     self.write("  Compacting started")
+    #     summary = summarize(self.model, self.conversation)
+    #     self.conversation = compact(self.conversation, summary)
+    #     self.write("  Compacting done")
 
-    async def on_response_message(self, event: ResponseMessage):
-        content = event.content
-        if self.mode != "response":
-            self.__commit()
-            self.mode = "response"
-            self.current = ResponseWidget()
-            self.chats.mount(self.current)
-        assert self.current is not None
-        await self.current.append(content)
+    def append(self, wgt):
+        chats = self.query_one("#chats")
+        chats.mount(wgt)
 
-    async def on_thinking_message(self, event: ThinkingMessage):
-        if self.mode != "thinking":
-            self.__commit()
-            self.mode = "thinking"
-            self.current = ThinkingWidget()
-            self.chats.mount(self.current)
-        assert self.current is not None
-        await self.current.append(event.content)
-
-    def on_tool_call_message(self, event: ToolCallMessage):
-        self.__commit()
-        table = Table(title=f"Call {event.name}")
-        table.add_column("Arg", justify="right", no_wrap=True)
-        table.add_column("Value", style="cyan")
-        for key, value in event.args.items():
-            table.add_row(key, value)
-        wdg = Static(Align.center(table))
-        self.chats.mount(wdg)
-
-    def on_ask_permission_message(self, event: AskPermissionMessage):
-        self.__commit()
-        wdg = AskPermissionWidget(event)
-        # self.current = wdg
-        # self.mode = "ask"
-        self.chats.mount(wdg)
-
-    def __commit(self):
-        if isinstance(self.current, ThinkingWidget):
-            self.current.collapse()
-        self.current = None
-        self.build_str = ""
-        self.mode = None
-
-        children = list(self.chats.children)
+        children = list(chats.children)
         while len(children) > MAX_WIDGETS:
             oldest = children.pop(0)
             oldest.remove()
 
-    def on_commit_message(self, event: CommitMessage):
-        self.__commit()
+    def need(self, typ):
+        chats = self.query_one("#chats")
+        if len(chats.children) > 0:
+            last = chats.children[-1]
+            if isinstance(last, typ):
+                return last
+        wgt = typ()
+        self.append(wgt)
+        return wgt
 
-    def on_context_info_message(self, event: ContextInfoMessage):
-        self.__commit()
-        # self.chats.mount(Static(f"context: {event.used}/{event.total}"))
-        self.set_context_info(event.used)
-
-    def write_response(self, content):
-        self.post_message(ResponseMessage(content))
-
-    def write_thinking(self, content):
-        self.post_message(ThinkingMessage(content))
-
-    def commit(self):
-        self.post_message(CommitMessage())
-
-    def write_tool_call(self, name, args):
-        self.post_message(ToolCallMessage(name, args))
-
-    def context_info(self, used):
-        self.post_message(ContextInfoMessage(used))
-
-    def write(self, content):
-        self.post_message(WriteMessage(content))
-
-    async def ask_permission(self, name):
-        loop = asyncio.get_running_loop()
-        future = loop.create_future()
-
-        def resolve(value):
-            if not future.done():
-                loop.call_soon_threadsafe(future.set_result, value)
-
-        self.post_message(AskPermissionMessage(name, resolve))
-        return await future
-
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    async def on_input_submitted(self, event: Input.Submitted) -> None:
         prompt = event.value
-        wdg = PromptWidget()
-        self.chats.mount(wdg)
-        wdg.append(prompt)
         event.input.clear()
-        self.conversation.append(Message("user", prompt))
-        self.run_worker(self.process(), exclusive=True, thread=True)
+        try:
+            asyncio.create_task(self.agent.submit_prompt(prompt))
+        except BusyError:
+            event.input.value = prompt
+            self.write("Already busy")
 
-    async def process(self):
-        await harness(
-            self.model,
-            self.effort,
-            self.conversation,
-            self.write_response,
-            self.write_thinking,
-            self.write_tool_call,
-            self.ask_permission,
-            self.context_info,
-            self.commit,
-            self.write,
-        )
+    def write(self, msg: str, level: LogLevel = LogLevel.NORMAL):
+        text = Text(msg)
+        if level is LogLevel.DANGER:
+            text.stylize("red")
+        elif level is LogLevel.WARNING:
+            text.stylize("yellow")
+        elif level is LogLevel.DIMMED:
+            text.stylize("#808080")
+        self.append(Static(text))
 
     def on_mount(self) -> None:
-        self.input.focus()
+        prompt = self.query_one("#prompt")
+        prompt.focus()
 
     def action_dump_conversation(self):
         with open("conversation.json", "w") as file:
-            file.write(dumps(self.conversation, indent=3))
+            file.write(dumps(self.agent.conversation, indent=3))
 
 
 if __name__ == "__main__":

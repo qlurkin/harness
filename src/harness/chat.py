@@ -1,25 +1,27 @@
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from litellm import completion, get_model_info, token_counter
+from litellm import acompletion, completion, get_model_info, token_counter
 from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
-from litellm.types.utils import ChatCompletionDeltaToolCall
+from litellm.types.utils import ChatCompletionDeltaToolCall, ModelResponse
 
 from harness.config import NUM_CTX
 from harness.providers import get_api_base
+from harness.system_prompt import system_prompt
 from harness.tools import get_tools
 
 
 @dataclass
 class Message:
-    role: str
-    content: str
+    role: str = "user"
+    content: str = ""
     thinking: str = ""
     tool_calls: list = field(default_factory=list)
     tool_call_id: str = ""
     tool_name: str = ""
     thinking_blocks: list = field(default_factory=list)
+    used: int = 0
 
 
 def dump_message(msg: Message):
@@ -55,28 +57,28 @@ def is_anthropic_model(model_id):
     return model_id.split("/")[1].startswith("claude")
 
 
-def chat(
+async def chat(
     model_id: str,
     effort: str,
     messages: list[Message],
-    log,
-) -> Generator[tuple[Message, int]]:
+    log: Callable[[str], Awaitable],
+) -> AsyncGenerator[tuple[Message, int]]:
 
     raw_messages = [dump_message(m) for m in messages]
 
     # with open("raw_messages.json", "w") as file:
     #     json.dump(raw_messages, file, indent=4, ensure_ascii=False)
 
-    context_tokens = token_counter(
+    message_tokens = token_counter(
         model=model_id,
         messages=raw_messages,
     )
 
     context_limit = get_context_limit(model_id)
 
-    if context_limit is not None and context_tokens >= context_limit:
+    if context_limit is not None and message_tokens >= context_limit:
         raise ContextLimitExceeded(
-            f"Context limit exceeded: {context_tokens}/{context_limit}"
+            f"Context limit exceeded: {message_tokens}/{context_limit}"
         )
 
     api_base = get_api_base(model_id.split("/")[0])
@@ -95,18 +97,21 @@ def chat(
     if is_anthropic_model(model_id):
         params["thinking"] = {"type": "enabled", "budget_tokens": 1024}
 
-    stream = completion(**params)
+    stream = await acompletion(**params)
 
     assert isinstance(stream, CustomStreamWrapper)
 
     context_tokens = 0
     tool_calls: dict[int, dict[str, Any]] = {}
 
-    for chunk in stream:
+    async for chunk in stream:
         # log(chunk)
         usage = getattr(chunk, "usage", None)
         if usage:
-            context_tokens = usage.prompt_tokens
+            context_tokens = max(
+                message_tokens,
+                usage.prompt_tokens,
+            )
 
         if not chunk.choices:
             continue
@@ -173,3 +178,50 @@ def chat(
         Message(role="assistant", content=""),
         context_tokens,
     )
+
+
+SUMMARY_INSTRUCTION = """\
+Summarize the conversation above so that work can continue from your summary alone. Include:
+- The user's goals and requests, and the decisions made along the way.
+- Every file touched (read, created, edited) and how each one changed.
+- Important tool calls and their results (commands run, outputs, errors, test results).
+- Any unfinished work, open questions, and the next steps.
+Be concise but specific (paths, names, values). Do not call tools. Output only the summary."""
+
+
+def summarize(model_id, messages: list[Message]) -> str:
+    raw = [dump_message(m) for m in messages[1:]]
+    raw.append({"role": "user", "content": SUMMARY_INSTRUCTION})
+
+    params = {
+        "model": model_id,
+        "api_base": get_api_base(model_id.split("/")[0]),
+        "messages": raw,
+        "stream": False,
+    }
+
+    response = completion(**params)
+
+    assert isinstance(response, ModelResponse)
+
+    summary = response.choices[0].message.content
+    if not summary or not summary.strip():
+        raise ValueError("empty summary")
+    return summary.strip()
+
+
+SUMMARY_HEADER = (
+    "[Context summary - earlier messages were compacted to save space. "
+    "File contents mentioned below may be stale, re-read files before editing.]"
+)
+
+
+def compact(conversation: list[Message], summary: str, keep: int = 6) -> list[Message]:
+    start = max(len(conversation) - keep, 1)
+    while start > 1 and conversation[start].role == "tool":
+        start -= 1
+    return [
+        Message("system", system_prompt()),
+        Message("user", f"{SUMMARY_HEADER}\n\n{summary}"),
+        *conversation[start:],
+    ]

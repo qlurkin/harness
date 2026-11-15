@@ -1,10 +1,11 @@
 from harness.ui import UI
 
 # TODO:
+# - Use async version of completion for chat and summary
+# - better compaction trigger
 # - exec tools in subprocesses in parallele
 # - dracula
 # - Add Mistral Provider
-# - Add Compaction
 # - Add Slash Commands
 # - Add Agents.md
 # - Add Skills
