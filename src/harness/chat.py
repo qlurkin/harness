@@ -2,12 +2,11 @@ from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from litellm import acompletion, completion, get_model_info, token_counter
+from litellm import acompletion, completion, token_counter
 from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
 from litellm.types.utils import ChatCompletionDeltaToolCall, ModelResponse
 
-from harness.config import NUM_CTX
-from harness.providers import get_api_base
+from harness.providers import get_context_limit, get_params
 from harness.system_prompt import system_prompt
 from harness.tools import get_tools
 
@@ -39,14 +38,6 @@ def dump_message(msg: Message):
     if len(msg.thinking_blocks) > 0:
         res["thinking_blocks"] = msg.thinking_blocks
     return res
-
-
-def get_context_limit(model_id) -> int:
-    model_info = get_model_info(model_id)
-    context_limit = model_info.get("max_input_tokens")
-    if context_limit is None:
-        return NUM_CTX
-    return context_limit
 
 
 class ContextLimitExceeded(Exception):
@@ -81,11 +72,10 @@ async def chat(
             f"Context limit exceeded: {message_tokens}/{context_limit}"
         )
 
-    api_base = get_api_base(model_id.split("/")[0])
+    provider = model_id.split("/")[0]
 
     params = {
         "model": model_id,
-        "api_base": api_base,
         "messages": raw_messages,
         "tools": get_tools(),
         "tool_choice": "auto",
@@ -93,6 +83,8 @@ async def chat(
         "stream_options": {"include_usage": True},
         "reasoning_effort": effort,
     }
+
+    params.update(get_params(provider))
 
     if is_anthropic_model(model_id):
         params["thinking"] = {"type": "enabled", "budget_tokens": 1024}
@@ -195,10 +187,13 @@ def summarize(model_id, messages: list[Message]) -> str:
 
     params = {
         "model": model_id,
-        "api_base": get_api_base(model_id.split("/")[0]),
         "messages": raw,
         "stream": False,
     }
+
+    provider = model_id.split("/")[0]
+
+    params.update(get_params(provider))
 
     response = completion(**params)
 

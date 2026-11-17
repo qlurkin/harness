@@ -7,10 +7,10 @@ from enum import Enum, auto
 from typing import Any
 
 from harness.config import MODEL
-from harness.providers import list_models
+from harness.providers import list_models, get_context_limit
 from harness.system_prompt import system_prompt
 
-from .chat import Message, chat, get_context_limit
+from .chat import Message, chat
 from .tools import Permission, call_tool
 
 
@@ -107,15 +107,16 @@ class Agent:
 
         await self.emit(Prompt(prompt))
         self.conversation.append(Message("user", prompt))
-        await self.think()
+        try:
+            await self.think()
+        except Exception as e:  # noqa: BLE001
+            self.thinking = False
+            await self.danger(f"{type(e)}: {e}")
 
     async def think(self):
-        async def log(msg):
-            await self.emit(Log(msg, LogLevel.WARNING))
-
         self.thinking = True
         while self.thinking:
-            chunks = chat(self.model, self.effort, self.conversation, log)
+            chunks = chat(self.model, self.effort, self.conversation, self.warning)
             used = 0
             reply = Message("assistant", "")
             async for chunk, usage in chunks:
@@ -175,3 +176,15 @@ class Agent:
 
         await self.emit(ToolPermisionRequest(name, args, resolve))
         return await future
+
+    async def log(self, msg: Any, level=LogLevel.NORMAL):
+        await self.emit(Log(str(msg), level))
+
+    async def danger(self, msg: Any):
+        await self.log(msg, LogLevel.DANGER)
+
+    async def warning(self, msg: Any):
+        await self.log(msg, LogLevel.WARNING)
+
+    async def dimmed(self, msg: Any):
+        await self.log(msg, LogLevel.DIMMED)

@@ -2,12 +2,12 @@ import json
 import urllib.request
 
 provider = "ollama_chat"
-api_base = "http://localhost:11434"
+params = {"api_base": "http://localhost:11434"}
 
 
 def list_models():
     request = urllib.request.Request(
-        api_base + "/api/tags",
+        params["api_base"] + "/api/tags",
         method="GET",
     )
 
