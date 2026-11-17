@@ -111,7 +111,7 @@ class Agent:
             await self.think()
         except Exception as e:  # noqa: BLE001
             self.thinking = False
-            await self.danger(f"{type(e)}: {e}")
+            await self.danger(f"{type(e).__name__}: {e}")
 
     async def think(self):
         self.thinking = True

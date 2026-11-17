@@ -1,5 +1,11 @@
+"""GitHub Copilot, via litellm (the only place litellm is used)."""
+
+from collections.abc import AsyncGenerator
+
+from harness.message import Message
+from harness.providers._openai_stream import consume_stream
+
 provider = "github_copilot"
-params = {"drop_params": True}
 
 
 def list_models():
@@ -19,3 +25,42 @@ def list_models():
     ]
 
     return [f"{provider}/{m}" for m in models]
+
+
+def get_context_limit(model: str):
+    from litellm import get_model_info
+
+    return get_model_info(f"{provider}/{model}").get("max_input_tokens")
+
+
+def count_tokens(model: str, messages: list[dict]) -> int:
+    from litellm import token_counter
+
+    return token_counter(model=f"{provider}/{model}", messages=messages)
+
+
+async def chat(
+    model: str,
+    effort: str,
+    messages: list[dict],
+    tools: list[dict] | None = None,
+) -> AsyncGenerator[tuple[Message, int]]:
+    from litellm import acompletion
+
+    params = {
+        "model": f"{provider}/{model}",
+        "messages": messages,
+        "stream": True,
+        "stream_options": {"include_usage": True},
+        "reasoning_effort": effort,
+        "drop_params": True,
+    }
+    if tools:
+        params["tools"] = tools
+        params["tool_choice"] = "auto"
+    if model.startswith("claude"):
+        params["thinking"] = {"type": "enabled", "budget_tokens": 1024}
+
+    stream = await acompletion(**params)
+    async for item in consume_stream(stream):
+        yield item

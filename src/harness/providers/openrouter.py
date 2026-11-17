@@ -1,23 +1,25 @@
 import json
-import os
+from collections.abc import AsyncGenerator
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+from openai import AsyncOpenAI
+
+from harness.message import Message
+from harness.providers._openai_stream import consume_stream
+
 provider = "openrouter"
-params = {
-    "api_base": "https://openrouter.ai/api/v1",
-    "custom_llm_provider": "openai",
-    "temperature": 0.7,
-    "max_tokens": 500,
-    "drop_params": True,
-}
+BASE_URL = "https://openrouter.ai/api/v1"
+TEMPERATURE = 0.7
+MAX_TOKENS = 500
+_api_key: str | None = None
 
 
 context_limits = {}
 
 
-# def get_context_limit(model):
-#     return context_limits[model]
+def get_context_limit(model):
+    return context_limits.get(model)
 
 
 def get_free_models(api_key=None):
@@ -54,18 +56,6 @@ def get_free_models(api_key=None):
                 if "text" not in output_modalities:
                     continue
 
-                # free_models.append(
-                #     {
-                #         "id": model.get("id"),
-                #         "name": model.get("name"),
-                #         "context_length": model.get("context_length"),
-                #         "max_completion_tokens": model.get("top_provider", {}).get(
-                #             "max_completion_tokens"
-                #         ),
-                #         "pricing": pricing,
-                #     }
-                # )
-
                 free_models.append(f"{provider}/{model.get('id')}")
                 context_limits[model.get("id")] = model.get("context_length")
 
@@ -86,12 +76,46 @@ except FileNotFoundError:
 
 try:
     key = config["openrouter"]["key"]
-    params["api_key"] = key
-    os.environ["OPENROUTER_API_KEY"] = key
+    _api_key = key
     models = get_free_models(key)
 except KeyError:
     models = []
 
 
 def list_models():
-    return ["openrouter/free"]
+    return models
+
+
+def _clean(m: dict) -> dict:
+    return {k: v for k, v in m.items() if k != "thinking_blocks"}
+
+
+async def chat(
+    model: str,
+    effort: str,
+    messages: list[dict],
+    tools: list[dict] | None = None,
+) -> AsyncGenerator[tuple[Message, int]]:
+    client = AsyncOpenAI(base_url=BASE_URL, api_key=_api_key or "missing")
+
+    extra_body = {}
+    if effort in ("none", "minimal", "low", "medium", "high", "xhigh"):
+        extra_body["reasoning"] = {"effort": effort}
+
+    kwargs = {}
+    if tools:
+        kwargs["tools"] = tools
+        kwargs["tool_choice"] = "auto"
+
+    stream = await client.chat.completions.create(
+        model=model,
+        messages=[_clean(m) for m in messages],
+        stream=True,
+        stream_options={"include_usage": True},
+        temperature=TEMPERATURE,
+        max_tokens=MAX_TOKENS,
+        extra_body=extra_body,
+        **kwargs,
+    )  # ty: ignore[no-matching-overload]
+    async for item in consume_stream(stream):
+        yield item
