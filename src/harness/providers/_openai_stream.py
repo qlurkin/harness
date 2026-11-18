@@ -1,6 +1,6 @@
 """Shared helper: turn an OpenAI-style chunk stream into (Message, used) pairs.
 
-Works with chunks from the `openai` SDK and from litellm (same shape).
+Works with chunks from the `openai` SDK.
 """
 
 from collections.abc import AsyncGenerator, AsyncIterable

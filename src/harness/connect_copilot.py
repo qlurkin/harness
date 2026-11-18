@@ -1,11 +1,13 @@
-from litellm import completion
-from litellm.types.utils import ModelResponse
+"""Log in to GitHub Copilot: harness connect_copilot"""
 
-response = completion(
-    model="github_copilot/claude-sonnet-5.5",
-    messages=[{"role": "user", "content": "Hello"}],
-)
+from harness.copilot_auth import AUTH_PATH, get_session, login
 
-assert isinstance(response, ModelResponse)
 
-print(response.choices[0].message.content)
+def main() -> None:
+    login()
+    session = get_session()
+    print(f"Logged in. Token saved in {AUTH_PATH}. API: {session['api_base']}")
+
+
+if __name__ == "__main__":
+    main()

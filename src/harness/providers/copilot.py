@@ -1,42 +1,61 @@
+"""GitHub Copilot, via the openai SDK against the Copilot API."""
+
+import httpx
 from collections.abc import AsyncGenerator
 
-from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
+from openai import AsyncOpenAI
 
 from harness.message import Message
+from harness import copilot_auth as auth
 from harness.providers._openai_stream import consume_stream
 
 provider = "github_copilot"
 
-
-def list_models():
-    models = [
-        "gpt-5.3-codex",
-        "claude-haiku-5.5",
-        "claude-sonnet-5.5",
-        "claude-sonnet-5",
-        "claude-haiku-4.5",
-        "gemini-3.8-flash",
-        "gpt-5.6-luna",
-        "gpt-5.6-terra",
-        "gpt-6.1-terra",
-        "gpt-6-luna",
-        "kimi-k3",
-        "mai-code-1.1-flash",
-    ]
-
-    return [f"{provider}/{m}" for m in models]
+_context_limits: dict[str, int] = {}
 
 
-def get_context_limit(model: str):
-    from litellm import get_model_info
+def _fetch_models() -> list[dict]:
+    session = auth.get_session()
+    resp = httpx.get(
+        f"{session['api_base']}/models",
+        headers=auth.api_headers() | {"authorization": f"Bearer {session['token']}"},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.json()["data"]
 
-    return get_model_info(f"{provider}/{model}").get("max_input_tokens")
+
+def list_models() -> list[str]:
+    if not auth.load_github_token():
+        return []  # not logged in: harness connect_copilot
+
+    try:
+        data = _fetch_models()
+    except (httpx.HTTPError, auth.CopilotAuthError) as e:
+        print(f"Copilot: cannot list models: {e}")
+        return []
+
+    models = []
+    for m in data:
+        caps = m.get("capabilities", {})
+        endpoints = m.get("supported_endpoints")
+        if not m.get("model_picker_enabled", True):
+            continue
+        if caps.get("type") != "chat" or not caps.get("supports", {}).get("tool_calls"):
+            continue
+        if endpoints is not None and "/chat/completions" not in endpoints:
+            continue  # e.g. codex models, /responses only
+
+        limits = caps.get("limits", {})
+        limit = limits.get("max_prompt_tokens") or limits.get("max_context_window_tokens")
+        if limit:
+            _context_limits[m["id"]] = limit
+        models.append(f"{provider}/{m['id']}")
+    return models
 
 
-def count_tokens(model: str, messages: list[dict]) -> int:
-    from litellm import token_counter
-
-    return token_counter(model=f"{provider}/{model}", messages=messages)
+def get_context_limit(model: str) -> int | None:
+    return _context_limits.get(model)
 
 
 async def chat(
@@ -45,23 +64,26 @@ async def chat(
     messages: list[dict],
     tools: list[dict] | None = None,
 ) -> AsyncGenerator[tuple[Message, int]]:
-    from litellm import acompletion
+    session = await auth.aget_session()
+    client = AsyncOpenAI(
+        base_url=session["api_base"],
+        api_key=session["token"],
+        default_headers=auth.api_headers(),
+    )
 
-    params = {
-        "model": f"{provider}/{model}",
-        "messages": messages,
-        "stream": True,
-        "stream_options": {"include_usage": True},
-        "reasoning_effort": effort,
-        "drop_params": True,
-    }
+    kwargs: dict = {}
     if tools:
-        params["tools"] = tools
-        params["tool_choice"] = "auto"
-    if model.startswith("claude"):
-        params["thinking"] = {"type": "enabled", "budget_tokens": 1024}
+        kwargs["tools"] = tools
+        kwargs["tool_choice"] = "auto"
+    if effort in ("minimal", "low", "medium", "high"):
+        kwargs["reasoning_effort"] = effort
 
-    stream = await acompletion(**params)
-    assert isinstance(stream, CustomStreamWrapper)
+    stream = await client.chat.completions.create(
+        model=model,
+        messages=[{k: v for k, v in m.items() if k != "thinking_blocks"} for m in messages],
+        stream=True,
+        stream_options={"include_usage": True},
+        **kwargs,
+    )
     async for item in consume_stream(stream):
         yield item
