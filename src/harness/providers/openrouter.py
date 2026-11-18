@@ -11,7 +11,7 @@ from harness.providers._openai_stream import consume_stream
 provider = "openrouter"
 BASE_URL = "https://openrouter.ai/api/v1"
 TEMPERATURE = 0.7
-MAX_TOKENS = 500
+MAX_TOKENS = 16384
 _api_key: str | None = None
 
 

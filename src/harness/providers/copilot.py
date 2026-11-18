@@ -1,6 +1,6 @@
-"""GitHub Copilot, via litellm (the only place litellm is used)."""
-
 from collections.abc import AsyncGenerator
+
+from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
 
 from harness.message import Message
 from harness.providers._openai_stream import consume_stream
@@ -62,5 +62,6 @@ async def chat(
         params["thinking"] = {"type": "enabled", "budget_tokens": 1024}
 
     stream = await acompletion(**params)
+    assert isinstance(stream, CustomStreamWrapper)
     async for item in consume_stream(stream):
         yield item

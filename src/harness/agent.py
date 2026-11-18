@@ -7,7 +7,7 @@ from enum import Enum, auto
 from typing import Any
 
 from harness.config import MODEL
-from harness.providers import list_models, get_context_limit
+from harness.providers import get_context_limit, list_models
 from harness.system_prompt import system_prompt
 
 from .chat import Message, chat
