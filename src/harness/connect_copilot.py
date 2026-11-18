@@ -1,6 +1,7 @@
 """Log in to GitHub Copilot: harness connect_copilot"""
 
-from harness.copilot_auth import AUTH_PATH, get_session, login
+from harness.auth import AUTH_PATH
+from harness.copilot_auth import get_session, login
 
 
 def main() -> None:

@@ -5,13 +5,13 @@ It is exchanged for a Copilot session token (~30 min) that is kept in memory.
 """
 
 import asyncio
-import json
 import threading
 import time
-from pathlib import Path
 from uuid import uuid4
 
 import httpx
+
+from harness.auth import load_auth, save_entry
 
 CLIENT_ID = "Iv1.b507a08c87ecfe98"  # VS Code's Copilot client id
 DEVICE_CODE_URL = "https://github.com/login/device/code"
@@ -20,7 +20,6 @@ SESSION_TOKEN_URL = "https://api.github.com/copilot_internal/v2/token"
 DEFAULT_API_BASE = "https://api.githubcopilot.com"
 
 COPILOT_VERSION = "0.26.7"
-AUTH_PATH = Path.home() / ".config" / "harness" / "auth.json"
 KEY = "github_copilot"
 
 
@@ -31,23 +30,12 @@ class CopilotAuthError(Exception):
 # ---------- storage ----------
 
 
-def _read_auth() -> dict:
-    try:
-        return json.loads(AUTH_PATH.read_text())
-    except FileNotFoundError:
-        return {}
-
-
 def load_github_token() -> str | None:
-    return _read_auth().get(KEY, {}).get("access_token")
+    return load_auth().get(KEY, {}).get("access_token")
 
 
 def save_github_token(token: str) -> None:
-    data = _read_auth()
-    data[KEY] = {"type": "oauth", "access_token": token}
-    AUTH_PATH.parent.mkdir(parents=True, exist_ok=True)
-    AUTH_PATH.write_text(json.dumps(data, indent=2))
-    AUTH_PATH.chmod(0o600)
+    save_entry(KEY, {"type": "oauth", "access_token": token})
 
 
 # ---------- device flow ----------

@@ -1,10 +1,10 @@
 import json
 from collections.abc import AsyncGenerator
-from pathlib import Path
 from urllib.request import Request, urlopen
 
 from openai import AsyncOpenAI
 
+from harness.auth import load_auth
 from harness.message import Message
 from harness.providers._openai_stream import consume_stream
 
@@ -66,13 +66,7 @@ def get_free_models(api_key=None):
         return []
 
 
-config_path = Path.home() / ".config" / "harness" / "auth.json"
-
-try:
-    with open(config_path) as file:
-        config = json.load(file)
-except FileNotFoundError:
-    config = {}
+config = load_auth()
 
 try:
     key = config["openrouter"]["key"]
