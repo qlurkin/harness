@@ -40,6 +40,9 @@ def save_github_token(token: str) -> None:
 
 # ---------- device flow ----------
 
+_lock = threading.Lock()
+_session: dict | None = None
+
 
 def _github_headers() -> dict[str, str]:
     return {
@@ -51,22 +54,32 @@ def _github_headers() -> dict[str, str]:
     }
 
 
-def login(print_fn=print) -> str:
-    """Run the interactive device flow, store and return the GitHub token."""
+def request_device_code() -> dict:
+    """Step 1: returns {'device_code', 'user_code', 'verification_uri', ...}."""
+    resp = httpx.post(
+        DEVICE_CODE_URL,
+        headers=_github_headers(),
+        json={"client_id": CLIENT_ID, "scope": "read:user"},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def poll_for_token(dev: dict, cancel: threading.Event | None = None) -> str:
+    """Step 2 (blocking): wait for the user to authorize, store and return the token.
+
+    Set `cancel` from another thread to abort.
+    """
+    global _session
+    cancel = cancel or threading.Event()
+    interval = dev.get("interval", 5)
+    deadline = time.monotonic() + dev.get("expires_in", 900)
+
     with httpx.Client(headers=_github_headers(), timeout=30) as http:
-        resp = http.post(
-            DEVICE_CODE_URL, json={"client_id": CLIENT_ID, "scope": "read:user"}
-        )
-        resp.raise_for_status()
-        dev = resp.json()
-
-        print_fn(f"Open {dev['verification_uri']} and enter the code: {dev['user_code']}")
-
-        interval = dev.get("interval", 5)
-        deadline = time.monotonic() + dev.get("expires_in", 900)
-
         while time.monotonic() < deadline:
-            time.sleep(interval)
+            if cancel.wait(interval):
+                raise CopilotAuthError("Cancelled")
             resp = http.post(
                 ACCESS_TOKEN_URL,
                 json={
@@ -80,6 +93,8 @@ def login(print_fn=print) -> str:
 
             if "access_token" in body:
                 save_github_token(body["access_token"])
+                with _lock:
+                    _session = None
                 return body["access_token"]
 
             error = body.get("error")
@@ -95,10 +110,6 @@ def login(print_fn=print) -> str:
 
 # ---------- session token ----------
 
-_lock = threading.Lock()
-_session: dict | None = None
-
-
 def _session_valid(session: dict | None) -> bool:
     return session is not None and session["expires_at"] - 60 > time.time()
 
@@ -113,7 +124,7 @@ def get_session() -> dict:
         github_token = load_github_token()
         if not github_token:
             raise CopilotAuthError(
-                "Not logged in to GitHub Copilot. Run: harness connect_copilot"
+                "Not logged in to GitHub Copilot. Run: /login"
             )
 
         headers = _github_headers() | {"authorization": f"token {github_token}"}

@@ -4,13 +4,19 @@ import pkgutil
 from harness import providers
 from harness.config import NUM_CTX
 
-_MODELS = []
+_MODELS: dict[str, list[str]] = {}
 
 _PROVIDERS = {}
 
 
 def list_models():
-    return _MODELS
+    return [m for models in _MODELS.values() for m in models]
+
+
+def refresh_models(provider: str) -> list[str]:
+    """Re-query one provider's models (e.g. after a login). Blocking."""
+    _MODELS[provider] = _PROVIDERS[provider].list_models()
+    return list_models()
 
 
 def split_model_id(model_id: str) -> tuple[str, str]:
@@ -41,5 +47,5 @@ for info in pkgutil.iter_modules(providers.__path__):
     if info.name.startswith("_"):
         continue
     module = importlib.import_module(f"{__name__}.{info.name}")
-    _MODELS.extend(module.list_models())
     _PROVIDERS[module.provider] = module
+    _MODELS[module.provider] = module.list_models()

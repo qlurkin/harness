@@ -1,10 +1,12 @@
 import asyncio
+import inspect
 
 from rich.align import Align
 from rich.table import Table
 from rich.text import Text
-from textual.app import App, ComposeResult
+from textual.app import App, ComposeResult, SystemCommand
 from textual.color import Gradient
+from textual.suggester import Suggester
 from textual.containers import (
     HorizontalGroup,
     VerticalGroup,
@@ -36,7 +38,9 @@ from harness.agent import (
     ToolPermisionRequest,
     Usage,
 )
+from harness.commands import COMMANDS, parse
 from harness.config import MAX_WIDGETS
+from harness.providers import refresh_models
 from harness.serialisation import dumps
 from harness.tools import Permission
 
@@ -130,6 +134,21 @@ class ThinkingWidget(VerticalGroup):
         self.query_one(Collapsible).collapsed = True
 
 
+class CommandSuggester(Suggester):
+    """Completes '/na' into '/name' in the prompt."""
+
+    def __init__(self):
+        super().__init__(use_cache=False, case_sensitive=False)
+
+    async def get_suggestion(self, value: str) -> str | None:
+        if not value.startswith("/") or " " in value:
+            return None
+        for name in COMMANDS:
+            if f"/{name}".startswith(value.lower()) and f"/{name}" != value:
+                return f"/{name}"
+        return None
+
+
 class UI(App):
     CSS = """
     #menu {
@@ -217,7 +236,11 @@ class UI(App):
         chats = VerticalScroll(id="chats")
         chats.anchor(True)
         yield chats
-        yield Input(placeholder="Prompt", id="prompt")
+        yield Input(
+            placeholder="Prompt (/ for commands)",
+            id="prompt",
+            suggester=CommandSuggester(),
+        )
         yield Footer()
 
     def on_select_changed(self, event: Select.Changed):
@@ -255,13 +278,51 @@ class UI(App):
         return wgt
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id != "prompt":
+            return
         prompt = event.value
         event.input.clear()
+
+        parsed = parse(prompt)
+        if parsed is not None:
+            await self.run_command(*parsed)
+            return
+
         try:
             asyncio.create_task(self.agent.submit_prompt(prompt))
         except BusyError:
             event.input.value = prompt
             self.write("Already busy")
+
+    async def run_command(self, name: str, args: str = "") -> None:
+        cmd = COMMANDS.get(name)
+        if cmd is None:
+            self.write(f"Unknown command: /{name}", LogLevel.WARNING)
+            return
+        result = cmd.run(self, args)
+        if inspect.isawaitable(result):
+            await result
+
+    def get_system_commands(self, screen):
+        yield from super().get_system_commands(screen)
+        for cmd in COMMANDS.values():
+            yield SystemCommand(
+                f"/{cmd.name}",
+                cmd.description,
+                lambda cmd=cmd: self.run_command(cmd.name),
+            )
+
+    async def on_login_done(self, provider: str, ok: bool | None) -> None:
+        if not ok:
+            return
+        self.notify(f"Logged in ({provider})")
+        models = await asyncio.to_thread(refresh_models, provider)
+        self.agent.models = models
+        select = self.query_one("#model", Select)
+        with self.prevent(Select.Changed):
+            select.set_options((m, m) for m in models)
+            if self.agent.model in models:
+                select.value = self.agent.model
 
     def write(self, msg: str, level: LogLevel = LogLevel.NORMAL):
         text = Text(msg)

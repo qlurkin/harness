@@ -12,7 +12,6 @@ provider = "openrouter"
 BASE_URL = "https://openrouter.ai/api/v1"
 TEMPERATURE = 0.7
 MAX_TOKENS = 16384
-_api_key: str | None = None
 
 
 context_limits = {}
@@ -66,18 +65,13 @@ def get_free_models(api_key=None):
         return []
 
 
-config = load_auth()
-
-try:
-    key = config["openrouter"]["key"]
-    _api_key = key
-    models = get_free_models(key)
-except KeyError:
-    models = []
+def _load_key() -> str | None:
+    return load_auth().get("openrouter", {}).get("key")
 
 
 def list_models():
-    return models
+    key = _load_key()
+    return get_free_models(key) if key else []
 
 
 def _clean(m: dict) -> dict:
@@ -90,7 +84,7 @@ async def chat(
     messages: list[dict],
     tools: list[dict] | None = None,
 ) -> AsyncGenerator[tuple[Message, int]]:
-    client = AsyncOpenAI(base_url=BASE_URL, api_key=_api_key or "missing")
+    client = AsyncOpenAI(base_url=BASE_URL, api_key=_load_key() or "missing")
 
     extra_body = {}
     if effort in ("none", "minimal", "low", "medium", "high", "xhigh"):
