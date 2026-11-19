@@ -7,10 +7,11 @@ from enum import Enum, auto
 from typing import Any
 
 from harness.config import MODEL
-from harness.providers import get_context_limit, list_models
+from harness.providers import count_tokens, get_context_limit, list_models
 from harness.system_prompt import system_prompt
 
-from .chat import Message, chat
+from harness.message import dump_message
+from .chat import Message, chat, compact, summarize
 from .tools import Permission, call_tool
 
 
@@ -139,6 +140,28 @@ class Agent:
 
             self.conversation.extend(await self.process_tool_calls(reply.tool_calls))
         self.thinking = False
+
+    async def compact(self):
+        if self.thinking:
+            raise BusyError()
+        if len(self.conversation) <= 2:
+            await self.dimmed("Nothing to compact")
+            return
+
+        self.thinking = True
+        try:
+            await self.dimmed("Compacting started")
+            summary = await summarize(self.model, self.conversation)
+            self.conversation = compact(self.conversation, summary)
+            used = count_tokens(
+                self.model, [dump_message(m) for m in self.conversation]
+            )
+            await self.emit(Usage(used, self.context_limit))
+            await self.dimmed("Compacting done")
+        except Exception as e:  # noqa: BLE001
+            await self.danger(f"Compaction failed: {type(e).__name__}: {e}")
+        finally:
+            self.thinking = False
 
     async def cancel(self):
         self.thinking = False

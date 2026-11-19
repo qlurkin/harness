@@ -8,6 +8,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from harness.agent import LogLevel
+
 
 @dataclass(frozen=True)
 class Command:
@@ -52,3 +54,16 @@ def login(app, args: str) -> None:
         open_login(args)
     else:
         app.push_screen(ProviderSelectScreen(), open_login)
+
+
+@command("quit", "Quit the application")
+def quit_app(app, args: str) -> None:
+    app.exit()
+
+
+@command("compact", "Summarize the conversation to free context")
+def compact_context(app, args: str) -> None:
+    if app.agent.thinking:
+        app.write("Agent is busy", LogLevel.WARNING)
+        return
+    app.run_worker(app.agent.compact())
