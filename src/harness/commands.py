@@ -101,3 +101,12 @@ def model(app, args: str) -> None:
 @command("effort", "Change the reasoning effort")
 def effort(app, args: str) -> None:
     _choose(app, "Effort", app.agent.efforts, app.agent.effort, args, app.set_effort)
+
+
+@command("clear", "Reset the context with a fresh system prompt")
+async def clear(app, args: str) -> None:
+    if app.agent.thinking:
+        app.write("Agent is busy", LogLevel.WARNING)
+        return
+    await app.agent.clear()
+    await app.query_one("#chats").remove_children()

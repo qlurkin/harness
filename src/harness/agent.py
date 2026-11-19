@@ -141,6 +141,13 @@ class Agent:
             self.conversation.extend(await self.process_tool_calls(reply.tool_calls))
         self.thinking = False
 
+    async def clear(self):
+        if self.thinking:
+            raise BusyError()
+        self.conversation = [Message("system", system_prompt())]
+        used = count_tokens(self.model, [dump_message(m) for m in self.conversation])
+        await self.emit(Usage(used, self.context_limit))
+
     async def compact(self):
         if self.thinking:
             raise BusyError()
