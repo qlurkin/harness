@@ -67,3 +67,37 @@ def compact_context(app, args: str) -> None:
         app.write("Agent is busy", LogLevel.WARNING)
         return
     app.run_worker(app.agent.compact())
+
+
+def _resolve(value: str, choices: list[str]) -> str | None:
+    """Exact match, or a unique substring match."""
+    if value in choices:
+        return value
+    matches = [c for c in choices if value.lower() in c.lower()]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _choose(app, title: str, choices: list[str], current: str, args: str, apply) -> None:
+    from harness.screens import ChoiceScreen
+
+    if not args:
+        app.push_screen(
+            ChoiceScreen(title, choices, current),
+            lambda value: apply(value) if value else None,
+        )
+        return
+    value = _resolve(args, choices)
+    if value is None:
+        app.write(f"Unknown or ambiguous value: {args}", LogLevel.WARNING)
+        return
+    apply(value)
+
+
+@command("model", "Change the model")
+def model(app, args: str) -> None:
+    _choose(app, "Model", app.agent.models, app.agent.model, args, app.set_model)
+
+
+@command("effort", "Change the reasoning effort")
+def effort(app, args: str) -> None:
+    _choose(app, "Effort", app.agent.efforts, app.agent.effort, args, app.set_effort)

@@ -5,7 +5,6 @@ import threading
 from dataclasses import dataclass
 
 from textual.app import ComposeResult
-from textual.binding import Binding
 from textual.containers import Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
@@ -13,41 +12,10 @@ from textual.widgets.option_list import Option
 
 from harness import copilot_auth
 from harness.auth import save_entry
+from harness.screens import Dialog
 
 
-class _Dialog(ModalScreen):
-    DEFAULT_CSS = """
-    _Dialog {
-        align: center middle;
-    }
-
-    _Dialog > Vertical {
-        width: 70;
-        height: auto;
-        max-height: 80%;
-        border: round $primary;
-        background: $surface;
-        padding: 1 2;
-    }
-
-    _Dialog .title {
-        text-style: bold;
-        margin-bottom: 1;
-    }
-
-    _Dialog .hint {
-        color: $text-muted;
-        margin-top: 1;
-    }
-    """
-
-    BINDINGS = [Binding("escape", "cancel", "Cancel")]  # noqa: RUF012
-
-    def action_cancel(self) -> None:
-        self.dismiss(None)
-
-
-class ProviderSelectScreen(_Dialog):
+class ProviderSelectScreen(Dialog):
     """Dismisses with the chosen provider id, or None."""
 
     def compose(self) -> ComposeResult:
@@ -65,7 +33,7 @@ class ProviderSelectScreen(_Dialog):
         self.dismiss(event.option.id)
 
 
-class OpenRouterLoginScreen(_Dialog):
+class OpenRouterLoginScreen(Dialog):
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Label("OpenRouter login", classes="title")
@@ -84,7 +52,7 @@ class OpenRouterLoginScreen(_Dialog):
         self.dismiss(True)
 
 
-class CopilotLoginScreen(_Dialog):
+class CopilotLoginScreen(Dialog):
     def __init__(self) -> None:
         super().__init__()
         self._cancel = threading.Event()

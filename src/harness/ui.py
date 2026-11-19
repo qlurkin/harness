@@ -312,6 +312,13 @@ class UI(App):
                 lambda cmd=cmd: self.run_command(cmd.name),
             )
 
+    def set_model(self, model: str) -> None:
+        # the Select's Changed handler updates the agent
+        self.query_one("#model", Select).value = model
+
+    def set_effort(self, effort: str) -> None:
+        self.query_one("#effort", Select).value = effort
+
     async def on_login_done(self, provider: str, ok: bool | None) -> None:
         if not ok:
             return
