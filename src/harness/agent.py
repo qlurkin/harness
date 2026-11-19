@@ -8,6 +8,7 @@ from typing import Any
 
 from harness.config import MODEL
 from harness.providers import count_tokens, get_context_limit, list_models
+from harness.settings import load_settings
 from harness.system_prompt import system_prompt
 
 from harness.message import dump_message
@@ -70,7 +71,17 @@ class Agent:
         self.conversation: list[Message] = [Message("system", system_prompt())]
         self.thinking = False
         self.models = list_models()
+        settings = load_settings()
+        self.startup_warnings: list[str] = []
         self.__model = MODEL
+        wanted = settings.get("model")
+        if wanted is not None:
+            if wanted in self.models:
+                self.__model = wanted
+            else:
+                self.startup_warnings.append(
+                    f"Default model '{wanted}' from settings is not available, using {MODEL}"
+                )
         self.context_limit = get_context_limit(self.__model)
         self.efforts = [
             "none",
@@ -83,6 +94,15 @@ class Agent:
             "default",
         ]
         self.effort = "medium"
+        wanted = settings.get("effort")
+        if wanted is not None:
+            if wanted in self.efforts:
+                self.effort = wanted
+            else:
+                self.startup_warnings.append(
+                    f"Unknown default effort '{wanted}' in settings "
+                    f"(expected one of: {', '.join(self.efforts)})"
+                )
 
     @property
     def model(self):

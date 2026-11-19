@@ -38,6 +38,7 @@ from harness.commands import COMMANDS, parse
 from harness.config import MAX_WIDGETS
 from harness.providers import refresh_models
 from harness.serialisation import dumps
+from harness.settings import load_settings, save_setting
 from harness.tools import Permission
 
 
@@ -162,6 +163,9 @@ class UI(App):
         self.title = "Harness"
         self.agent = Agent()
         self.context_used = 0
+        theme = load_settings().get("theme")
+        if theme in self.available_themes:
+            self.theme = theme
         self.agent.subscribe(self.handle_agent_event)
 
     async def handle_agent_event(self, event: Event):
@@ -301,7 +305,12 @@ class UI(App):
         self.append(Static(text))
 
     def on_mount(self) -> None:
+        self.theme_changed_signal.subscribe(
+            self, lambda theme: save_setting("theme", theme.name)
+        )
         self.update_status()
+        for warning in self.agent.startup_warnings:
+            self.write(warning, LogLevel.WARNING)
         prompt = self.query_one("#prompt")
         prompt.focus()
 
