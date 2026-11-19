@@ -5,7 +5,6 @@ from rich.align import Align
 from rich.table import Table
 from rich.text import Text
 from textual.app import App, ComposeResult, SystemCommand
-from textual.color import Gradient
 from textual.suggester import Suggester
 from textual.containers import (
     HorizontalGroup,
@@ -18,10 +17,7 @@ from textual.widgets import (
     Footer,
     Header,
     Input,
-    Label,
     Markdown,
-    ProgressBar,
-    Select,
     Static,
 )
 
@@ -151,13 +147,9 @@ class CommandSuggester(Suggester):
 
 class UI(App):
     CSS = """
-    #menu {
-        background: $surface;
-    }
-
-    #context {
-        padding: 1;
-        align-horizontal: center;
+    #status {
+        height: 1;
+        padding: 0 1;
     }
     """
 
@@ -169,11 +161,13 @@ class UI(App):
         super().__init__()
         self.title = "Harness"
         self.agent = Agent()
+        self.context_used = 0
         self.agent.subscribe(self.handle_agent_event)
 
     async def handle_agent_event(self, event: Event):
         if isinstance(event, Usage):
-            self.query_one(ProgressBar).update(progress=event.used, total=event.total)
+            self.context_used = event.used
+            self.update_status()
         if isinstance(event, Content):
             await self.need(ResponseWidget).append(event)
         if isinstance(event, Thinking):
@@ -196,43 +190,7 @@ class UI(App):
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
 
-        gradient = Gradient.from_colors(
-            "#881177",
-            "#aa3355",
-            "#cc6666",
-            "#ee9944",
-            "#eedd00",
-            "#99dd55",
-            "#44dd88",
-            "#22ccbb",
-            "#00bbcc",
-            "#0099cc",
-            "#3366bb",
-            "#663399",
-        )
-
         yield Header()
-        with HorizontalGroup(id="menu"):
-            yield Select(
-                ((model, model) for model in self.agent.models),
-                prompt="Model",
-                value=self.agent.model,
-                id="model",
-            )
-            yield Select(
-                ((effort, effort) for effort in self.agent.efforts),
-                prompt="Effort",
-                value=self.agent.effort,
-                id="effort",
-            )
-            with HorizontalGroup(id="context"):
-                yield Label("Context: ")
-                yield ProgressBar(
-                    show_eta=False,
-                    total=self.agent.context_limit,
-                    gradient=gradient,
-                    name="Context",
-                )
         chats = VerticalScroll(id="chats")
         chats.anchor(True)
         yield chats
@@ -241,13 +199,8 @@ class UI(App):
             id="prompt",
             suggester=CommandSuggester(),
         )
+        yield Static(id="status")
         yield Footer()
-
-    def on_select_changed(self, event: Select.Changed):
-        if event.select.id == "model":
-            self.agent.model = str(event.value)
-        elif event.select.id == "effort":
-            self.agent.effort = str(event.value)
 
     # def set_context_info(self, value):
     # self.query_one(ProgressBar).update(progress=value, total=self.context_limit)
@@ -313,23 +266,28 @@ class UI(App):
             )
 
     def set_model(self, model: str) -> None:
-        # the Select's Changed handler updates the agent
-        self.query_one("#model", Select).value = model
+        self.agent.model = model
+        self.update_status()
 
     def set_effort(self, effort: str) -> None:
-        self.query_one("#effort", Select).value = effort
+        self.agent.effort = effort
+        self.update_status()
 
     async def on_login_done(self, provider: str, ok: bool | None) -> None:
         if not ok:
             return
         self.notify(f"Logged in ({provider})")
-        models = await asyncio.to_thread(refresh_models, provider)
-        self.agent.models = models
-        select = self.query_one("#model", Select)
-        with self.prevent(Select.Changed):
-            select.set_options((m, m) for m in models)
-            if self.agent.model in models:
-                select.value = self.agent.model
+        self.agent.models = await asyncio.to_thread(refresh_models, provider)
+
+    def update_status(self) -> None:
+        used, total = self.context_used, self.agent.context_limit
+        percent = round(100 * used / total) if total else 0
+        text = Text(
+            f"{self.agent.model} · effort: {self.agent.effort} "
+            f"· context: {used:,}/{total:,} ({percent}%)",
+            style="#808080",
+        )
+        self.query_one("#status", Static).update(text)
 
     def write(self, msg: str, level: LogLevel = LogLevel.NORMAL):
         text = Text(msg)
@@ -342,6 +300,7 @@ class UI(App):
         self.append(Static(text))
 
     def on_mount(self) -> None:
+        self.update_status()
         prompt = self.query_one("#prompt")
         prompt.focus()
 
