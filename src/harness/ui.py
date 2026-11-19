@@ -257,7 +257,8 @@ class UI(App):
             await result
 
     def get_system_commands(self, screen):
-        yield from super().get_system_commands(screen)
+        # Only our slash commands: Textual's defaults (Theme, Keys, Screenshot,
+        # Quit) have been turned into commands, Maximize/Minimize dropped.
         for cmd in COMMANDS.values():
             yield SystemCommand(
                 f"/{cmd.name}",

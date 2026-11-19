@@ -110,3 +110,29 @@ async def clear(app, args: str) -> None:
         return
     await app.agent.clear()
     await app.query_one("#chats").remove_children()
+
+
+@command("theme", "Change the theme")
+def theme(app, args: str) -> None:
+    if not args:
+        app.search_themes()
+        return
+    value = _resolve(args, list(app.available_themes))
+    if value is None:
+        app.write(f"Unknown or ambiguous theme: {args}", LogLevel.WARNING)
+        return
+    app.theme = value
+
+
+@command("keys", "Show or hide the keys and help panel")
+def keys(app, args: str) -> None:
+    if app.screen.query("HelpPanel"):
+        app.action_hide_help_panel()
+    else:
+        app.action_show_help_panel()
+
+
+@command("screenshot", "Save an SVG screenshot of the screen")
+def screenshot(app, args: str) -> None:
+    # small delay so the command palette is closed on the screenshot
+    app.set_timer(0.1, app.deliver_screenshot)
