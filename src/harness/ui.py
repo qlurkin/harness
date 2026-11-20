@@ -1,16 +1,17 @@
 import asyncio
 import inspect
+from pathlib import Path
 
 from rich.align import Align
 from rich.table import Table
 from rich.text import Text
 from textual.app import App, ComposeResult, SystemCommand
-from textual.suggester import Suggester
 from textual.containers import (
     HorizontalGroup,
     VerticalGroup,
     VerticalScroll,
 )
+from textual.suggester import Suggester
 from textual.widgets import (
     Button,
     Collapsible,
@@ -28,10 +29,10 @@ from harness.agent import (
     Event,
     Log,
     LogLevel,
+    PermisionRequest,
     Prompt,
     Thinking,
     ToolCall,
-    ToolPermisionRequest,
     Usage,
 )
 from harness.commands import COMMANDS, parse
@@ -50,12 +51,12 @@ class AskPermissionWidget(VerticalGroup):
     }
     """
 
-    def __init__(self, event: ToolPermisionRequest):
+    def __init__(self, event: PermisionRequest):
         self.event = event
         super().__init__()
 
     def compose(self):
-        yield Static(Align.center(f"Permission to use {self.event.name} tool ?"))
+        yield Static(Align.center(self.event.msg))
         with HorizontalGroup():
             yield Button("Deny", id="deny", variant="error")
             yield Button("Allow", id="allow", variant="success")
@@ -184,7 +185,7 @@ class UI(App):
                 table.add_row(key, value)
             wdg = Static(Align.center(table))
             self.append(wdg)
-        if isinstance(event, ToolPermisionRequest):
+        if isinstance(event, PermisionRequest):
             self.append(AskPermissionWidget(event))
         if isinstance(event, Log):
             self.write(event.msg, event.level)
@@ -236,20 +237,19 @@ class UI(App):
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input.id != "prompt":
+            self.write("pas prompt")
             return
         prompt = event.value
         event.input.clear()
 
         parsed = parse(prompt)
         if parsed is not None:
+            self.write("command")
             await self.run_command(*parsed)
             return
 
-        try:
-            asyncio.create_task(self.agent.submit_prompt(prompt))
-        except BusyError:
-            event.input.value = prompt
-            self.write("Already busy")
+        self.write("prompt")
+        asyncio.create_task(self.agent.submit_prompt(prompt))
 
     async def run_command(self, name: str, args: str = "") -> None:
         cmd = COMMANDS.get(name)
@@ -304,7 +304,7 @@ class UI(App):
             text.stylize("#808080")
         self.append(Static(text))
 
-    def on_mount(self) -> None:
+    async def on_mount(self) -> None:
         self.theme_changed_signal.subscribe(
             self, lambda theme: save_setting("theme", theme.name)
         )
@@ -313,6 +313,7 @@ class UI(App):
             self.write(warning, LogLevel.WARNING)
         prompt = self.query_one("#prompt")
         prompt.focus()
+        asyncio.create_task(self.agent.load(Path.cwd()))
 
     def action_dump_conversation(self):
         with open("conversation.json", "w") as file:

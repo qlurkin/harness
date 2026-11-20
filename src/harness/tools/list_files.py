@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from harness.config import ROOT
+# from harness.config import ROOT
 
 SAFE = True
 
@@ -31,8 +31,8 @@ def function(args: dict[str, Any]):
 
     dir = Path(dir).resolve()
 
-    if not dir.is_relative_to(ROOT):
-        return "error: 'path' is not inside the project"
+    # if not dir.is_relative_to(ROOT):
+    #     return "error: 'path' is not inside the project"
 
     lines = []
 

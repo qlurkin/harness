@@ -1,9 +1,10 @@
 """Credentials storage: ~/.config/harness/auth.json"""
 
 import json
-from pathlib import Path
 
-AUTH_PATH = Path.home() / ".config" / "harness" / "auth.json"
+from harness.config import CONFIG_PATH
+
+AUTH_PATH = CONFIG_PATH / "auth.json"
 
 
 def load_auth() -> dict:

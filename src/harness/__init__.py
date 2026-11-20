@@ -1,10 +1,8 @@
 # TODO:
+# - add a async load method to agent to set its ROOT and create the system prompt find a good place to call it in UI
 # - better compaction trigger
 # - exec tools in subprocesses in parallele
-# - dracula
 # - Add Mistral Provider
-# - Add Slash Commands
-# - Add Agents.md
 # - Add Skills
 # - Add Trust Store
 # - Add Session and Persistence

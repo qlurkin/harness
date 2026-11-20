@@ -7,7 +7,6 @@ from harness.providers import (
     get_provider,
     split_model_id,
 )
-from harness.system_prompt import system_prompt
 from harness.tools import get_tools
 
 __all__ = ["ContextLimitExceeded", "Message", "chat", "compact", "summarize"]
@@ -63,20 +62,3 @@ async def summarize(model_id, messages: list[Message]) -> str:
     if not summary:
         raise ValueError("empty summary")
     return summary
-
-
-SUMMARY_HEADER = (
-    "[Context summary - earlier messages were compacted to save space. "
-    "File contents mentioned below may be stale, re-read files before editing.]"
-)
-
-
-def compact(conversation: list[Message], summary: str, keep: int = 6) -> list[Message]:
-    start = max(len(conversation) - keep, 1)
-    while start > 1 and conversation[start].role == "tool":
-        start -= 1
-    return [
-        Message("system", system_prompt()),
-        Message("user", f"{SUMMARY_HEADER}\n\n{summary}"),
-        *conversation[start:],
-    ]

@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import Any
 
-from harness.config import ROOT
 
 SAFE = True
 
@@ -32,8 +31,8 @@ def function(args: dict[str, Any]):
     except KeyError:
         return "error: edit_file requires a string 'path' argument"
 
-    if not path.is_relative_to(ROOT):
-        return "error: 'path' is not inside the project"
+    # if not path.is_relative_to(ROOT):
+    #     return "error: 'path' is not inside the project"
 
     oldStr = args.get("old_string", "")
 
